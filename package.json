@@ -1,0 +1,21 @@
+{
+  "name": "tattoo-booking-system",
+  "version": "1.0.0",
+  "description": "Tattoo studio booking system with customer self-booking and AI-powered owner chat",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.9.1",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "openai": "^4.77.0",
+    "stripe": "^22.3.1"
+  }
+}

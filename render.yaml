@@ -1,0 +1,34 @@
+# Render Blueprint — deploys the tattoo booking demo as a Node web service.
+# In Render: New + → Blueprint → pick this repo. Secrets (sync:false) are
+# entered in the dashboard, never committed. After the first deploy, set
+# PUBLIC_BASE_URL to the service's real https URL and redeploy.
+services:
+  - type: web
+    name: tattoo-booking-demo
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node src/server.js
+    healthCheckPath: /api/config
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # --- non-secret config ---
+      - key: DEMO_MODE
+        value: "true"                       # demo: shows "no charge" banner + refuses live keys
+      - key: DEPOSIT_AMOUNT
+        value: "50"
+      - key: OPENROUTER_MODEL
+        value: anthropic/claude-3.7-sonnet
+      # --- set these in the dashboard (sync:false = not stored in git) ---
+      - key: PUBLIC_BASE_URL
+        sync: false                         # e.g. https://tattoo-booking-demo.onrender.com
+      - key: OWNER_PASSWORD
+        sync: false                         # pick a NEW strong password
+      - key: OPENROUTER_API_KEY
+        sync: false                         # powers the owner AI chat (optional)
+      - key: STRIPE_SECRET_KEY
+        sync: false                         # use sk_test_... for the demo
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false                         # from the Stripe dashboard webhook (see DEPLOY.md)

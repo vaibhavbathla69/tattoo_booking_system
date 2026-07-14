@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <!-- Booking links serve this same file at /b/:slug — <base> keeps every
+       relative asset (script/link) resolving against the site root instead
+       of resolving against /b/, which would otherwise 404-then-fallback into
+       the /b/:slug route and serve HTML where JS/CSS was expected. -->
+  <base href="/" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Black Craft Custom Tattoos — Book a Session</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Caveat:wght@400;500&family=Pinyon+Script&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="booking.css" />
+</head>
+<body>
+  <div class="demo-banner" id="demo-banner" hidden>
+    <span>You're viewing a live demo — no payment will be taken.</span>
+  </div>
+
+  <header class="site-header">
+    <div class="header-bar">
+      <span class="eyebrow">Book a session</span>
+      <span class="header-meta">Custom Tattoo Studio</span>
+    </div>
+    <div class="brand">
+      <h1 class="wordmark">Black Craft<span>Custom Tattoos</span></h1>
+      <p class="brand-script">where the ink finds you</p>
+    </div>
+  </header>
+
+  <main class="booking-main">
+    <div class="booking-layout">
+      <div class="booking-panel">
+        <div class="panel-header">
+          <button class="back-btn" id="back-btn" hidden aria-label="Back">‹</button>
+          <h2 id="step-title">Select a service</h2>
+        </div>
+        <div id="step-content"></div>
+      </div>
+
+      <aside class="booking-side">
+        <div class="studio-card">
+          <span class="studio-card__label">The Studio</span>
+          <h3>Black Craft Custom Tattoos</h3>
+          <p class="studio-blurb" id="studio-hours-blurb">Loading hours…</p>
+        </div>
+        <div class="summary-card" id="summary-card" hidden>
+          <h4>Your booking</h4>
+          <div id="summary-lines"></div>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <span>Black Craft Custom Tattoos</span>
+    <span>Walk-ins welcome when the chair is free</span>
+  </footer>
+
+  <!-- Per-studio demo presets (plain global, runs before the app module). -->
+  <script src="demo-presets.js"></script>
+  <script src="app.js" type="module"></script>
+</body>
+</html>

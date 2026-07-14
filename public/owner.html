@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Black Craft Custom Tattoos — Studio Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Caveat:wght@400;500&family=Pinyon+Script&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="owner.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body class="owner-body">
+
+  <!-- Login -->
+  <div class="login-wrap" id="login-view">
+    <div class="login-card">
+      <span class="brand-mark">✦</span>
+      <h2>Owner access</h2>
+      <input type="password" id="password" placeholder="Password" autocomplete="current-password" />
+      <p class="field-error" id="login-error" hidden></p>
+      <button class="cta" id="login-btn">Enter</button>
+    </div>
+  </div>
+
+  <!-- Dashboard -->
+  <div class="dash" id="dash-view" hidden>
+    <header class="dash-header">
+      <div class="dash-brand">
+        <span class="brand-mark">✦</span>
+        <h1>Black Craft Custom Tattoos</h1>
+      </div>
+      <nav class="dash-tabs" id="dash-tabs">
+        <button class="tab active" data-view="calendar">Calendar</button>
+        <button class="tab" data-view="clients">Clients</button>
+        <button class="tab" data-view="stats">Stats</button>
+        <button class="tab" data-view="links">Links</button>
+      </nav>
+      <button class="chat-toggle" id="chat-toggle" aria-label="Toggle assistant">💬 <span>Assistant</span></button>
+    </header>
+
+    <div class="dash-body">
+      <main class="dash-main">
+        <section class="view" id="view-calendar"></section>
+        <section class="view" id="view-clients" hidden></section>
+        <section class="view" id="view-stats" hidden></section>
+        <section class="view" id="view-links" hidden></section>
+      </main>
+
+      <aside class="chat-panel" id="chat-panel">
+        <div class="chat-panel-head">
+          <h3>Studio Assistant</h3>
+          <button class="chat-close" id="chat-close" aria-label="Close">×</button>
+        </div>
+        <div id="messages"></div>
+        <div class="suggestions" id="suggestions">
+          <button>What's on today?</button>
+          <button>What's free tomorrow?</button>
+          <button>How did last month go?</button>
+        </div>
+        <div id="composer">
+          <textarea id="input" rows="1" placeholder="Ask or tell me what to do…"></textarea>
+          <button class="cta" id="send-btn">Send</button>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- Shared modal / drawer mount points -->
+  <div class="overlay" id="overlay" hidden></div>
+  <div class="drawer" id="drawer" hidden></div>
+
+  <script src="owner-app.js" type="module"></script>
+</body>
+</html>
