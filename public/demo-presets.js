@@ -43,6 +43,28 @@ window.DEMO_PRESETS = {
     ],
   },
 
+  // Black Craft Custom Tattoos — Craig's real August availability. The
+  // `availability` map turns the calendar into a curated one: ONLY these
+  // dates are bookable, each showing exactly the slots Craig offers. Keys are
+  // dates (YYYY-MM-DD); each entry names a service (must match `services`
+  // above/below) and a start time (HH:MM).
+  "black-craft": {
+    name: "Black Craft Custom Tattoos",
+    artists: [
+      { name: "Craig", styles: "Custom blackwork, traditional", rate: "£350 full day / £175 half day" },
+    ],
+    services: [
+      { name: "Full day session", price: 350 },   // 9:30am–2:30pm
+      { name: "Half day session", price: 175 },   // 4pm–7pm
+    ],
+    availability: {
+      "2026-08-24": [ { service: "Full day session", start: "09:30" }, { service: "Half day session", start: "16:00" } ],
+      "2026-08-26": [ { service: "Full day session", start: "09:30" }, { service: "Half day session", start: "16:00" } ],
+      "2026-08-28": [ { service: "Full day session", start: "09:30" } ],
+      "2026-08-31": [ { service: "Full day session", start: "09:30" }, { service: "Half day session", start: "16:00" } ],
+    },
+  },
+
   // Add more studios here, e.g.:
   // "golden-goose": {
   //   name: "Golden Goose Tattoo",

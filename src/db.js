@@ -180,8 +180,7 @@ if (hoursCount === 0) {
     "INSERT INTO studio_hours (day_of_week, open_time, close_time, closed) VALUES (?, ?, ?, ?)"
   );
   insert.run(0, "11:00", "16:00", 0); // Sunday — shorter hours
-  insert.run(1, null, null, 1);       // Monday — closed
-  for (const d of [2, 3, 4, 5, 6]) {  // Tue–Sat
+  for (const d of [1, 2, 3, 4, 5, 6]) {  // Mon–Sat (Mon open for bank-holiday demo dates)
     insert.run(d, "09:30", "19:00", 0);
   }
 }

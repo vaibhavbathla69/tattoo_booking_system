@@ -302,6 +302,9 @@ img { display: block; max-width: 100%; }
 }
 .cal-day:hover:not(.disabled):not(.selected) { background: #f3efec; }
 .cal-day.disabled { color: var(--ink-faint); opacity: 0.5; text-decoration: line-through; cursor: not-allowed; }
+/* Curated calendars dim the non-offered dates (no strike-through — most of
+   the month is simply "not one of the available dates"). */
+.cal-day.na { color: var(--ink-faint); opacity: 0.4; cursor: default; }
 .cal-day.empty { visibility: hidden; }
 /* today = ring, selected = ink fill (matches the front page's active state) */
 .cal-day.today { box-shadow: inset 0 0 0 1.5px var(--rose-deep); color: var(--rose-deep); font-weight: 600; }

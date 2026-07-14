@@ -145,6 +145,21 @@ function applyServicePreset(realServices) {
   });
 }
 
+// Curated availability: when a preset supplies an `availability` map, the
+// calendar shows ONLY those dates and offers only the listed slots for the
+// selected service — matching what the studio actually posted.
+function curatedMode() {
+  return !!(activePreset && activePreset.availability);
+}
+function curatedSlots(dateStr) {
+  const av = activePreset && activePreset.availability;
+  if (!av || !av[dateStr] || !state.service) return [];
+  return av[dateStr].filter((e) => e.service === state.service.name).map((e) => e.start);
+}
+function curatedHasService(dateStr) {
+  return curatedSlots(dateStr).length > 0;
+}
+
 // ---------------------------------------------------------------------------
 // Navigation
 // ---------------------------------------------------------------------------
@@ -281,6 +296,8 @@ function availabilityUrl(dateStr) {
 // forcing a click on each day to find out. Uses only the public availability
 // endpoint, one lightweight request per candidate day.
 async function loadMonthAvailability() {
+  // Curated calendars compute their dots synchronously in renderCalendarGrid.
+  if (curatedMode()) return;
   const [y, m] = calendarMonthCursor.split("-").map(Number);
   const daysInMonth = new Date(y, m, 0).getDate();
   const today = todayISO();
@@ -332,7 +349,7 @@ function renderDateTimeStep() {
         <div class="cal-days-grid" id="cal-days-grid"></div>
         <div class="cal-legend">
           <span class="cal-legend-item"><span class="cal-dot open"></span>Available</span>
-          <span class="cal-legend-item"><span class="cal-dot full"></span>Fully booked</span>
+          ${curatedMode() ? "" : `<span class="cal-legend-item"><span class="cal-dot full"></span>Fully booked</span>`}
         </div>
       </div>
       <div class="time-panel" id="time-panel">
@@ -359,31 +376,42 @@ function renderCalendarGrid() {
 
   $("cal-prev-month").disabled = calendarMonthCursor <= `${today.slice(0, 7)}-01`;
 
+  const curated = curatedMode();
   let html = "";
   for (let i = 0; i < leadingBlanks; i++) html += `<div class="cal-day empty"></div>`;
   for (let day = 1; day <= daysInMonth; day++) {
     const iso = `${y}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-    const dow = new Date(y, m - 1, day).getDay();
-    const dayHours = hours.find((h) => h.day_of_week === dow);
-    const closed = !dayHours || dayHours.closed;
     const isPast = iso < today;
-    const outsideLinkWindow =
-      (linkBookableFrom && iso < linkBookableFrom) || (linkBookableUntil && iso > linkBookableUntil);
-    const disabled = closed || isPast || outsideLinkWindow;
     const classes = ["cal-day"];
+    let disabled = false, na = false;
+
+    if (curated) {
+      // Only allowlisted dates are bookable; everything else is dimmed (na).
+      if (isPast) disabled = true;
+      else if (!curatedHasService(iso)) na = true;
+      else classes.push("has-open");
+    } else {
+      const dow = new Date(y, m - 1, day).getDay();
+      const dayHours = hours.find((h) => h.day_of_week === dow);
+      const closed = !dayHours || dayHours.closed;
+      const outsideLinkWindow =
+        (linkBookableFrom && iso < linkBookableFrom) || (linkBookableUntil && iso > linkBookableUntil);
+      disabled = closed || isPast || outsideLinkWindow;
+      // 0 open slots = fully booked, >0 = available (once counts have loaded).
+      if (!disabled && monthAvail[iso] !== undefined) {
+        classes.push(monthAvail[iso] > 0 ? "has-open" : "is-full");
+      }
+    }
+
     if (disabled) classes.push("disabled");
+    if (na) classes.push("na");
     if (iso === today) classes.push("today");
     if (iso === state.date) classes.push("selected");
-    // Availability signal (only for selectable days once counts have loaded):
-    // 0 open slots = fully booked, >0 = available.
-    if (!disabled && monthAvail[iso] !== undefined) {
-      classes.push(monthAvail[iso] > 0 ? "has-open" : "is-full");
-    }
     html += `<div class="${classes.join(" ")}" data-date="${iso}">${day}</div>`;
   }
   $("cal-days-grid").innerHTML = html;
 
-  $("cal-days-grid").querySelectorAll(".cal-day:not(.disabled):not(.empty)").forEach((cell) => {
+  $("cal-days-grid").querySelectorAll(".cal-day:not(.disabled):not(.empty):not(.na)").forEach((cell) => {
     cell.addEventListener("click", () => {
       state.date = cell.dataset.date;
       state.time = null;
@@ -397,15 +425,20 @@ async function loadSlotsForDate(dateStr) {
   const panel = $("time-panel");
   panel.innerHTML = `<p class="time-date-label">${fmtDateLong(dateStr)}</p><p class="no-slots-msg">Loading…</p>`;
 
-  let data;
-  try {
-    data = await fetch(availabilityUrl(dateStr)).then((r) => r.json());
-  } catch {
-    panel.innerHTML = `<p class="time-date-label">${fmtDateLong(dateStr)}</p><p class="no-slots-msg">Couldn't load times — try again.</p>`;
-    return;
+  let slots;
+  if (curatedMode()) {
+    slots = curatedSlots(dateStr);
+  } else {
+    let data;
+    try {
+      data = await fetch(availabilityUrl(dateStr)).then((r) => r.json());
+    } catch {
+      panel.innerHTML = `<p class="time-date-label">${fmtDateLong(dateStr)}</p><p class="no-slots-msg">Couldn't load times — try again.</p>`;
+      return;
+    }
+    slots = (data[0] && data[0].slots) || [];
   }
 
-  const slots = (data[0] && data[0].slots) || [];
   if (slots.length === 0) {
     panel.innerHTML = `<p class="time-date-label">${fmtDateLong(dateStr)}</p><p class="no-slots-msg">No availability that day — try another date.</p>`;
     return;
