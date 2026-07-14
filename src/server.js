@@ -45,7 +45,9 @@ app.post("/api/webhooks/stripe", express.raw({ type: "application/json" }), (req
   res.json({ received: true });
 });
 
-app.use(express.json());
+// Limit raised so bookings can carry a few downscaled reference photos
+// (data URLs) in the JSON body.
+app.use(express.json({ limit: "12mb" }));
 app.use(express.static(path.join(__dirname, "..", "public")));
 
 // Shareable booking links (e.g. an Instagram flash-drop link) land on the
@@ -134,8 +136,14 @@ app.get("/api/links/:slug", (req, res) => {
 });
 
 app.post("/api/bookings", async (req, res) => {
-  const { name, email, phone, artist_id, service_id, date, start_time, description, reference_notes, link_slug } =
+  const { name, email, phone, artist_id, service_id, date, start_time, description, reference_notes, reference_images, link_slug } =
     req.body || {};
+
+  // Keep only valid image data URLs, capped, so a booking can't carry junk or
+  // an unbounded payload.
+  const cleanImages = Array.isArray(reference_images)
+    ? reference_images.filter((s) => typeof s === "string" && /^data:image\/(png|jpe?g|webp|gif);base64,/.test(s)).slice(0, 6)
+    : [];
 
   if (!name || !name.trim()) return res.status(400).json({ error: "Name is required." });
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))
@@ -204,13 +212,13 @@ app.post("/api/bookings", async (req, res) => {
   const result = db
     .prepare(
       `INSERT INTO bookings (client_id, artist_id, service_id, link_id, date, start_time, duration_minutes,
-                             style, description, reference_notes, price, status, source)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'web')`
+                             style, description, reference_notes, reference_images, price, status, source)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'web')`
     )
     .run(
       clientRow.id, artist.id, service ? service.id : null, link ? link.id : null,
       date, start_time, durationMinutes, styleLabel,
-      description.trim(), (reference_notes || "").trim(), fixedPrice, initialStatus
+      description.trim(), (reference_notes || "").trim(), JSON.stringify(cleanImages), fixedPrice, initialStatus
     );
   const bookingId = result.lastInsertRowid;
 

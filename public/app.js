@@ -14,6 +14,7 @@ let services = [];
 let artists = [];
 let hours = [];
 let config = { payments_enabled: false, deposit_amount: 0 }; // from /api/config
+let refImages = []; // customer's reference photos (downscaled data URLs) for this booking
 let calendarMonthCursor = null; // 'YYYY-MM-01' — visible calendar month
 let monthAvail = {};            // 'YYYY-MM-DD' -> number of open slots (undefined = not yet loaded)
 let monthAvailToken = 0;        // guards against out-of-order month fetches
@@ -474,8 +475,17 @@ function renderDetailsStep() {
         <textarea id="f-desc" rows="4" required placeholder="Placement, size, style, subject — whatever you know so far."></textarea>
       </div>
       <div class="field">
-        <label for="f-refs">Reference images or ideas <span class="optional">optional</span></label>
-        <textarea id="f-refs" rows="2" placeholder="Links or descriptions of anything you'd like us to look at."></textarea>
+        <label>Reference photos <span class="optional">optional</span></label>
+        <div class="uploader" id="uploader">
+          <input id="f-images" type="file" accept="image/*" multiple hidden />
+          <button type="button" class="upload-btn" id="upload-btn">＋ Add photos</button>
+          <span class="upload-hint">or drop images here</span>
+        </div>
+        <div class="upload-previews" id="upload-previews"></div>
+      </div>
+      <div class="field">
+        <label for="f-refs">Anything else / links <span class="optional">optional</span></label>
+        <textarea id="f-refs" rows="2" placeholder="Pinterest or Instagram links, or notes about the idea."></textarea>
       </div>
       <p class="field-error" id="form-error" hidden></p>
       ${config.payments_enabled ? `<p class="deposit-note">${config.demo_mode ? `<strong>Demo — no real charge.</strong> This shows our secure checkout; use any Stripe test card. ` : ""}A £${config.deposit_amount} deposit secures your slot — it comes off the total on the day${config.demo_mode ? "" : ", and you'll be taken to our secure checkout to pay"}.</p>` : ""}
@@ -483,6 +493,70 @@ function renderDetailsStep() {
     </form>`;
 
   $("booking-form").addEventListener("submit", submitBooking);
+  wireImageUpload();
+  renderPreviews();
+}
+
+// --- Reference photo upload (client-side downscale → data URLs) ------------
+const MAX_IMAGES = 6;
+
+async function fileToScaledDataUrl(file) {
+  const dataUrl = await new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+  const img = await new Promise((res, rej) => {
+    const i = new Image();
+    i.onload = () => res(i);
+    i.onerror = rej;
+    i.src = dataUrl;
+  });
+  const maxDim = 1400;
+  let { width, height } = img;
+  if (Math.max(width, height) > maxDim) {
+    const s = maxDim / Math.max(width, height);
+    width = Math.round(width * s);
+    height = Math.round(height * s);
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+  return canvas.toDataURL("image/jpeg", 0.82); // downscaled so payloads stay small
+}
+
+function renderPreviews() {
+  const wrap = $("upload-previews");
+  if (!wrap) return;
+  wrap.innerHTML = refImages
+    .map((src, i) => `<div class="preview"><img src="${src}" alt="reference ${i + 1}" /><button type="button" class="preview-remove" data-i="${i}" aria-label="Remove photo">×</button></div>`)
+    .join("");
+  wrap.querySelectorAll(".preview-remove").forEach((b) =>
+    b.addEventListener("click", () => { refImages.splice(Number(b.dataset.i), 1); renderPreviews(); })
+  );
+}
+
+async function addFiles(fileList) {
+  for (const f of Array.from(fileList)) {
+    if (refImages.length >= MAX_IMAGES) break;
+    if (!f.type.startsWith("image/")) continue;
+    try { refImages.push(await fileToScaledDataUrl(f)); } catch { /* skip unreadable file */ }
+  }
+  renderPreviews();
+}
+
+function wireImageUpload() {
+  const input = $("f-images"), btn = $("upload-btn"), zone = $("uploader");
+  if (!input || !btn) return;
+  btn.addEventListener("click", () => input.click());
+  input.addEventListener("change", () => { addFiles(input.files); input.value = ""; });
+  if (zone) {
+    ["dragover", "dragenter"].forEach((ev) => zone.addEventListener(ev, (e) => { e.preventDefault(); zone.classList.add("drag"); }));
+    ["dragleave", "drop"].forEach((ev) => zone.addEventListener(ev, (e) => { e.preventDefault(); zone.classList.remove("drag"); }));
+    zone.addEventListener("drop", (e) => { if (e.dataTransfer && e.dataTransfer.files) addFiles(e.dataTransfer.files); });
+  }
 }
 
 async function submitBooking(e) {
@@ -503,6 +577,7 @@ async function submitBooking(e) {
         phone: $("f-phone").value,
         description: $("f-desc").value,
         reference_notes: $("f-refs").value,
+        reference_images: refImages,
         artist_id: state.artist.id,
         service_id: state.service.id,
         link_slug: linkMode ? linkSlug : undefined,

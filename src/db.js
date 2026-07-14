@@ -76,6 +76,7 @@ CREATE TABLE IF NOT EXISTS bookings (
   style TEXT NOT NULL DEFAULT '',
   description TEXT NOT NULL DEFAULT '',
   reference_notes TEXT NOT NULL DEFAULT '',
+  reference_images TEXT NOT NULL DEFAULT '[]',  -- JSON array of downscaled data URLs
   status TEXT NOT NULL DEFAULT 'confirmed'
     CHECK (status IN ('pending','confirmed','cancelled','completed','no_show')),
   deposit_paid INTEGER NOT NULL DEFAULT 0,
@@ -106,6 +107,7 @@ addColumnIfMissing("booking_links", "bookable_from", "bookable_from TEXT");
 addColumnIfMissing("booking_links", "bookable_until", "bookable_until TEXT");
 addColumnIfMissing("bookings", "checkout_session_id", "checkout_session_id TEXT");
 addColumnIfMissing("bookings", "amount_paid", "amount_paid REAL");
+addColumnIfMissing("bookings", "reference_images", "reference_images TEXT NOT NULL DEFAULT '[]'");
 
 // Seed artists and opening hours on first run
 const artistCount = db.prepare("SELECT COUNT(*) AS n FROM artists").get().n;

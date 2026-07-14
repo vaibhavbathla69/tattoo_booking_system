@@ -265,6 +265,12 @@ html, body { height: 100%; }
   border: 1px solid var(--line); border-radius: 5px; padding: 0.65rem 0.8rem; font-size: 0.83rem;
 }
 .drawer .history-item .hist-date { color: var(--accent-soft); font-weight: 500; }
+/* reference photos in the booking drawer */
+.ref-photos { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.ref-photo { display: block; width: 76px; height: 76px; border-radius: 4px; overflow: hidden; border: 1px solid var(--line); }
+.ref-photo img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.2s; }
+.ref-photo:hover img { transform: scale(1.06); }
+
 .status-pill {
   display: inline-block; font-size: 0.7rem; padding: 0.15rem 0.55rem; border-radius: 999px;
   text-transform: uppercase; letter-spacing: 0.05em;

@@ -148,6 +148,25 @@ function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+// Customer's reference photos + links/notes, shown in the booking drawer.
+function refBlockHtml(booking) {
+  let images = [];
+  try { images = JSON.parse(booking.reference_images || "[]"); } catch { images = []; }
+  images = images.filter((s) => typeof s === "string" && s.startsWith("data:image/"));
+  const notes = (booking.reference_notes || "").trim();
+  if (!images.length && !notes) return "";
+  const photos = images.length
+    ? `<div class="ref-photos">${images.map((src, i) =>
+        `<a href="${src}" target="_blank" rel="noopener" class="ref-photo"><img src="${src}" alt="reference ${i + 1}" /></a>`
+      ).join("")}</div>`
+    : "";
+  const noteLine = notes
+    ? `<p style="font-size:0.85rem;color:var(--ink-dim);margin-top:0.5rem;">${escapeHtml(notes)}</p>`
+    : "";
+  const label = images.length ? `Reference (${images.length} photo${images.length === 1 ? "" : "s"})` : "Reference";
+  return `<div class="field"><label>${label}</label>${photos}${noteLine}</div>`;
+}
+
 // ---------------------------------------------------------------------------
 // Booking detail / edit drawer
 // ---------------------------------------------------------------------------
@@ -198,6 +217,8 @@ function openBookingDrawer(booking, artists, mount) {
       <label>Description</label>
       <p style="font-size:0.85rem;color:var(--ink-dim);">${escapeHtml(booking.description || "—")}</p>
     </div>
+
+    ${refBlockHtml(booking)}
 
     <div class="field">
       <label>Notes</label>
