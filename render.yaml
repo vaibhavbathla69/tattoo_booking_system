@@ -20,7 +20,7 @@ services:
       - key: DEPOSIT_AMOUNT
         value: "50"
       - key: OPENROUTER_MODEL
-        value: anthropic/claude-3.7-sonnet
+        value: deepseek/deepseek-v4-flash
       # --- set these in the dashboard (sync:false = not stored in git) ---
       - key: PUBLIC_BASE_URL
         sync: false                         # e.g. https://tattoo-booking-demo.onrender.com
