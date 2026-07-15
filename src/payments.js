@@ -1,7 +1,10 @@
 import Stripe from "stripe";
 
-const DEMO = /^(1|true|yes|on)$/i.test(process.env.DEMO_MODE || "");
-const KEY = process.env.STRIPE_SECRET_KEY || "";
+// Env values are .trim()'d throughout: hosting dashboards (Render et al) use
+// multi-line inputs that quietly append a newline, which is invisible in the UI
+// but corrupts URLs, keys and token comparisons.
+const DEMO = /^(1|true|yes|on)$/i.test((process.env.DEMO_MODE || "").trim());
+const KEY = (process.env.STRIPE_SECRET_KEY || "").trim();
 const IS_LIVE_KEY = KEY.startsWith("sk_live_");
 
 // Hard safety net: in demo mode we must never touch real money, so a live key
@@ -36,7 +39,7 @@ export function depositAmountPounds() {
 }
 
 function baseUrl() {
-  return (process.env.PUBLIC_BASE_URL || "http://localhost:3000").replace(/\/+$/, "");
+  return (process.env.PUBLIC_BASE_URL || "http://localhost:3000").trim().replace(/\/+$/, "");
 }
 
 /**
@@ -71,5 +74,5 @@ export async function createDepositCheckout({ bookingId, artistName, styleLabel,
 
 /** Verify and parse a webhook request. Throws if the signature is invalid. */
 export function constructWebhookEvent(rawBody, signature) {
-  return stripe.webhooks.constructEvent(rawBody, signature, process.env.STRIPE_WEBHOOK_SECRET);
+  return stripe.webhooks.constructEvent(rawBody, signature, (process.env.STRIPE_WEBHOOK_SECRET || "").trim());
 }

@@ -8,7 +8,9 @@ import db from "./db.js";
 
 /** Secret that guards the feed URL (calendar apps can't send auth headers). */
 export function calendarToken() {
-  return process.env.CALENDAR_TOKEN || "";
+  // .trim() — a hosting dashboard's textarea can append an invisible newline,
+  // which would silently never match the token in the URL.
+  return (process.env.CALENDAR_TOKEN || "").trim();
 }
 
 // Escape per RFC 5545: backslash, semicolon, comma, and newlines.
