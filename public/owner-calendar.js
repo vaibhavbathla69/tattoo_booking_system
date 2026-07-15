@@ -73,6 +73,7 @@ export async function renderCalendar(mount) {
           <option value="">All artists</option>
           ${artists.map((a) => `<option value="${a.id}" ${artistFilter === String(a.id) ? "selected" : ""}>${a.name}</option>`).join("")}
         </select>
+        <button class="btn-ghost" id="cal-subscribe">📅 Subscribe</button>
         <button class="btn-primary" id="cal-new-booking">+ New booking</button>
       </div>
 
@@ -133,6 +134,7 @@ export async function renderCalendar(mount) {
   $id("cal-today").addEventListener("click", () => { weekStart = mondayOf(todayISO()); renderCalendar(mount); });
   $id("cal-artist-filter").addEventListener("change", (e) => { artistFilter = e.target.value; renderCalendar(mount); });
   $id("cal-new-booking").addEventListener("click", () => openBookingForm(artists, mount));
+  $id("cal-subscribe").addEventListener("click", openSubscribeDrawer);
 
   mount.querySelectorAll(".booking-chip").forEach((chip) => {
     chip.addEventListener("click", () => {
@@ -165,6 +167,84 @@ function refBlockHtml(booking) {
     : "";
   const label = images.length ? `Reference (${images.length} photo${images.length === 1 ? "" : "s"})` : "Reference";
   return `<div class="field"><label>${label}</label>${photos}${noteLine}</div>`;
+}
+
+// Consent form status: signed (with answers + signature) or a copyable link.
+function consentBlockHtml(booking) {
+  if (!booking.consent_signed_at) {
+    const link = booking.consent_token ? `${location.origin}/consent/${booking.consent_token}` : "";
+    return `
+      <div class="field">
+        <label>Consent form</label>
+        <p style="font-size:0.85rem;color:var(--ink-dim);">
+          <span class="status-pill pending">not signed</span>
+          ${link ? `<span class="link-url-row" style="margin-top:0.5rem;"><code>${escapeHtml(link)}</code><button type="button" class="btn-copy" id="copy-consent">Copy link</button></span>` : ""}
+        </p>
+      </div>`;
+  }
+
+  let a = {};
+  try { a = JSON.parse(booking.consent_json || "{}"); } catch { a = {}; }
+  const flagged = Object.values(a.health || {}).filter((h) => h && h.answer === "yes");
+  const flags = flagged.length
+    ? `<ul class="consent-flags">${flagged.map((h) => `<li><strong>${escapeHtml(h.question)}</strong>${h.details ? ` — ${escapeHtml(h.details)}` : ""}</li>`).join("")}</ul>`
+    : `<p style="font-size:0.82rem;color:var(--ink-dim);margin-top:0.3rem;">No health flags declared.</p>`;
+
+  return `
+    <div class="field">
+      <label>Consent form</label>
+      <p style="font-size:0.85rem;color:var(--ink-dim);">
+        <span class="status-pill confirmed">signed</span>
+        ${escapeHtml(a.full_name || "")}${a.date_of_birth ? ` · DOB ${escapeHtml(a.date_of_birth)}` : ""}
+      </p>
+      ${flags}
+      ${booking.consent_signature ? `<a href="${booking.consent_signature}" target="_blank" rel="noopener" class="consent-sig"><img src="${booking.consent_signature}" alt="signature" /></a>` : ""}
+    </div>`;
+}
+
+// ---------------------------------------------------------------------------
+// Calendar subscribe (iCal feed) — add bookings to Google/Apple Calendar
+// ---------------------------------------------------------------------------
+
+async function openSubscribeDrawer() {
+  let url = null;
+  try {
+    ({ url } = await api("/api/owner/calendar-url"));
+  } catch (e) {
+    return toast(e.message, true);
+  }
+
+  if (!url) {
+    return openDrawer(`
+      <h3>Add to your calendar</h3>
+      <p class="drawer-sub">The calendar feed isn't switched on — set CALENDAR_TOKEN to enable it.</p>`);
+  }
+
+  openDrawer(`
+    <h3>Add to your calendar</h3>
+    <p class="drawer-sub">Subscribe once and every booking shows up in your phone's calendar, updating on its own.</p>
+    <div class="field">
+      <label>Your private calendar link</label>
+      <span class="link-url-row"><code style="word-break:break-all;">${escapeHtml(url)}</code></span>
+      <div class="actions" style="margin-top:0.8rem;">
+        <button class="btn-primary" id="sub-copy">Copy link</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>How to add it</label>
+      <p style="font-size:0.84rem;color:var(--ink-dim);line-height:1.7;">
+        <strong>iPhone:</strong> Settings → Calendar → Accounts → Add Account → Other → Add Subscribed Calendar → paste the link.<br />
+        <strong>Google Calendar:</strong> Other calendars → + → From URL → paste the link.
+      </p>
+      <p style="font-size:0.8rem;color:var(--ink-dim);margin-top:0.6rem;">
+        Keep this link private — anyone with it can see your bookings.
+      </p>
+    </div>`);
+
+  document.getElementById("sub-copy").addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(url); toast("Calendar link copied."); }
+    catch { toast("Couldn't copy — select the link manually.", true); }
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -219,6 +299,7 @@ function openBookingDrawer(booking, artists, mount) {
     </div>
 
     ${refBlockHtml(booking)}
+    ${consentBlockHtml(booking)}
 
     <div class="field">
       <label>Notes</label>
@@ -230,6 +311,16 @@ function openBookingDrawer(booking, artists, mount) {
       <button class="btn-danger" id="d-cancel">Cancel booking</button>
     </div>
   `);
+
+  const copyBtn = document.getElementById("copy-consent");
+  if (copyBtn) {
+    copyBtn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(`${location.origin}/consent/${booking.consent_token}`);
+        toast("Consent link copied.");
+      } catch { toast("Couldn't copy — select the link manually.", true); }
+    });
+  }
 
   document.getElementById("d-save").addEventListener("click", async () => {
     try {

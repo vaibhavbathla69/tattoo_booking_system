@@ -61,6 +61,7 @@ const BOOKING_SELECT = `
   SELECT b.id, b.date, b.start_time, b.duration_minutes, b.style, b.description,
          b.status, b.deposit_paid, b.price, b.notes, b.source,
          b.reference_notes, b.reference_images,
+         b.consent_signed_at, b.consent_json, b.consent_signature, b.consent_token,
          a.id AS artist_id, a.name AS artist_name, c.id AS client_id, c.name AS client_name,
          c.email AS client_email, c.phone AS client_phone
   FROM bookings b

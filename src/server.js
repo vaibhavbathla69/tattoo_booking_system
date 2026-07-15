@@ -8,6 +8,7 @@ import { getAvailabilityForDate, isSlotBookable, getAllHours, PENDING_HOLD_MINUT
 import { ownerChat, toolHandlers } from "./ai.js";
 import { getLinkBySlug, isDateBookable } from "./links.js";
 import { paymentsEnabled, depositAmountPounds, createDepositCheckout, constructWebhookEvent, demoMode } from "./payments.js";
+import { buildIcs, calendarToken } from "./calendar.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -61,6 +62,25 @@ app.get("/b/:slug", (req, res) => {
 // demo.yoursite.com/book?studio=Golden+Goose+Tattoo (app.js reads ?studio=).
 app.get("/book", (req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "index.html"));
+});
+
+// The client's consent form, opened from their unguessable per-booking link.
+app.get("/consent/:token", (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "public", "consent.html"));
+});
+
+// ---------------------------------------------------------------------------
+// Calendar feed (.ics) — the owner subscribes to this URL in Google/Apple
+// Calendar and bookings appear on their phone, refreshing automatically.
+// Calendar apps can't send auth headers, so the secret lives in the URL.
+// ---------------------------------------------------------------------------
+app.get("/api/calendar/:token", (req, res) => {
+  const token = String(req.params.token || "").replace(/\.ics$/i, "");
+  const expected = calendarToken();
+  if (!expected || token !== expected) return res.status(404).send("Not found");
+  res.set("Content-Type", "text/calendar; charset=utf-8");
+  res.set("Cache-Control", "no-cache");
+  res.send(buildIcs({ calendarName: "Studio Bookings" }));
 });
 
 // ---------------------------------------------------------------------------
@@ -209,16 +229,19 @@ app.post("/api/bookings", async (req, res) => {
   const initialStatus = takePayment ? "pending" : "confirmed";
 
   const clientRow = findOrCreateClient({ name, email, phone });
+  const consentToken = crypto.randomBytes(16).toString("hex");
   const result = db
     .prepare(
       `INSERT INTO bookings (client_id, artist_id, service_id, link_id, date, start_time, duration_minutes,
-                             style, description, reference_notes, reference_images, price, status, source)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'web')`
+                             style, description, reference_notes, reference_images, price, status,
+                             consent_token, source)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'web')`
     )
     .run(
       clientRow.id, artist.id, service ? service.id : null, link ? link.id : null,
       date, start_time, durationMinutes, styleLabel,
-      description.trim(), (reference_notes || "").trim(), JSON.stringify(cleanImages), fixedPrice, initialStatus
+      description.trim(), (reference_notes || "").trim(), JSON.stringify(cleanImages), fixedPrice, initialStatus,
+      consentToken
     );
   const bookingId = result.lastInsertRowid;
 
@@ -229,6 +252,7 @@ app.post("/api/bookings", async (req, res) => {
       service: styleLabel,
       date,
       start_time,
+      consent_token: consentToken,
     });
   }
 
@@ -250,10 +274,55 @@ app.post("/api/bookings", async (req, res) => {
 // to tell the customer whether the deposit has landed yet).
 app.get("/api/bookings/by-session/:sid", (req, res) => {
   const row = db
-    .prepare("SELECT status, deposit_paid FROM bookings WHERE checkout_session_id = ?")
+    .prepare("SELECT status, deposit_paid, consent_token FROM bookings WHERE checkout_session_id = ?")
     .get(req.params.sid);
   if (!row) return res.status(404).json({ error: "Not found." });
-  res.json({ status: row.status, deposit_paid: !!row.deposit_paid });
+  res.json({ status: row.status, deposit_paid: !!row.deposit_paid, consent_token: row.consent_token });
+});
+
+// ---------------------------------------------------------------------------
+// Client consent form — reached via the booking's unguessable consent_token.
+// ---------------------------------------------------------------------------
+
+app.get("/api/consent/:token", (req, res) => {
+  const b = db
+    .prepare(
+      `SELECT b.date, b.start_time, b.style, b.consent_signed_at,
+              a.name AS artist_name, c.name AS client_name
+       FROM bookings b
+       JOIN artists a ON a.id = b.artist_id
+       JOIN clients c ON c.id = b.client_id
+       WHERE b.consent_token = ?`
+    )
+    .get(req.params.token);
+  if (!b) return res.status(404).json({ error: "That consent form link isn't valid." });
+  res.json({
+    client_name: b.client_name,
+    artist_name: b.artist_name,
+    style: b.style,
+    date: b.date,
+    start_time: b.start_time,
+    signed: !!b.consent_signed_at,
+    signed_at: b.consent_signed_at,
+  });
+});
+
+app.post("/api/consent/:token", (req, res) => {
+  const b = db.prepare("SELECT id FROM bookings WHERE consent_token = ?").get(req.params.token);
+  if (!b) return res.status(404).json({ error: "That consent form link isn't valid." });
+
+  const { answers, signature } = req.body || {};
+  if (!answers || typeof answers !== "object")
+    return res.status(400).json({ error: "Please complete the form." });
+  if (typeof signature !== "string" || !/^data:image\/(png|jpe?g);base64,/.test(signature))
+    return res.status(400).json({ error: "A signature is required." });
+
+  db.prepare(
+    `UPDATE bookings SET consent_json = ?, consent_signature = ?, consent_signed_at = datetime('now')
+     WHERE id = ?`
+  ).run(JSON.stringify(answers), signature, b.id);
+
+  res.json({ ok: true });
 });
 
 // ---------------------------------------------------------------------------
@@ -331,6 +400,14 @@ app.put("/api/owner/clients/:client_id/notes", requireOwner, (req, res) => {
   res.json(result);
 });
 app.get("/api/owner/stats", requireOwner, handlerRoute(toolHandlers.get_stats));
+
+// The private calendar-subscribe URL (owner-only — the token is the secret).
+app.get("/api/owner/calendar-url", requireOwner, (req, res) => {
+  const token = calendarToken();
+  if (!token) return res.json({ url: null });
+  const base = (process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`).replace(/\/+$/, "");
+  res.json({ url: `${base}/api/calendar/${token}.ics` });
+});
 
 app.post("/api/owner/bookings", requireOwner, handlerRoute(toolHandlers.create_booking));
 app.patch("/api/owner/bookings/:booking_id", requireOwner, (req, res) => {

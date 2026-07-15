@@ -15,6 +15,7 @@ let artists = [];
 let hours = [];
 let config = { payments_enabled: false, deposit_amount: 0 }; // from /api/config
 let refImages = []; // customer's reference photos (downscaled data URLs) for this booking
+let consentToken = null; // set once booked — links the client to their consent form
 let calendarMonthCursor = null; // 'YYYY-MM-01' — visible calendar month
 let monthAvail = {};            // 'YYYY-MM-DD' -> number of open slots (undefined = not yet loaded)
 let monthAvailToken = 0;        // guards against out-of-order month fetches
@@ -593,6 +594,7 @@ async function submitBooking(e) {
       window.location.href = data.checkout_url;
       return;
     }
+    consentToken = data.consent_token || null;
     goTo("done");
   } catch (err) {
     errEl.textContent = err.message;
@@ -619,7 +621,8 @@ function renderDoneStep() {
       <h2>You're booked in.</h2>
       <p>${fmtDateLong(state.date)} at ${fmtTime(state.time)} with ${escapeHtml(state.artist.name)}.</p>
       <p class="confirm-note">We've saved your details — if anything changes, get in touch and we'll sort it.</p>
-      <button class="cta ghost" id="book-another">Book another session</button>
+      ${consentToken ? `<a class="cta" href="/consent/${encodeURIComponent(consentToken)}" style="display:inline-block;text-decoration:none;">Complete your consent form</a>` : ""}
+      <button class="cta ghost" id="book-another" style="margin-top:0.7rem;">Book another session</button>
     </div>`;
   $("book-another").addEventListener("click", () => location.reload());
 }
@@ -834,7 +837,8 @@ async function renderPaymentReturn(kind, sessionId) {
       <span class="confirm-mark">✦</span>
       <h2>You're booked in.</h2>
       <p class="confirm-note" id="pay-return-msg">Confirming your deposit…</p>
-      <a href="/" class="cta ghost" style="display:inline-block;text-decoration:none;">Book another session</a>
+      <div id="pay-return-consent"></div>
+      <a href="/" class="cta ghost" style="display:inline-block;text-decoration:none;margin-top:0.7rem;">Book another session</a>
     </div>`;
 
   const msg = $("pay-return-msg");
@@ -842,14 +846,23 @@ async function renderPaymentReturn(kind, sessionId) {
     msg.textContent = "Deposit received — we'll see you then.";
     return;
   }
+
+  const showConsent = (tok) => {
+    if (!tok) return;
+    $("pay-return-consent").innerHTML =
+      `<a class="cta" href="/consent/${encodeURIComponent(tok)}" style="display:inline-block;text-decoration:none;">Complete your consent form</a>`;
+  };
+
   // Poll briefly for the webhook to flip the booking to confirmed.
   for (let i = 0; i < 5; i++) {
     try {
       const s = await fetch(`/api/bookings/by-session/${encodeURIComponent(sessionId)}`).then((r) => r.json());
       if (s.status === "confirmed") {
         msg.textContent = "Deposit received — your booking is confirmed. We'll see you then.";
+        showConsent(s.consent_token);
         return;
       }
+      showConsent(s.consent_token);
     } catch { /* keep polling */ }
     await new Promise((r) => setTimeout(r, 1200));
   }

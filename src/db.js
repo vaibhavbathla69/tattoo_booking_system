@@ -77,6 +77,10 @@ CREATE TABLE IF NOT EXISTS bookings (
   description TEXT NOT NULL DEFAULT '',
   reference_notes TEXT NOT NULL DEFAULT '',
   reference_images TEXT NOT NULL DEFAULT '[]',  -- JSON array of downscaled data URLs
+  consent_token TEXT,                -- unguessable id for the client's consent-form link
+  consent_json TEXT,                 -- JSON of the completed consent answers
+  consent_signature TEXT,            -- signature image (data URL)
+  consent_signed_at TEXT,            -- ISO timestamp when signed
   status TEXT NOT NULL DEFAULT 'confirmed'
     CHECK (status IN ('pending','confirmed','cancelled','completed','no_show')),
   deposit_paid INTEGER NOT NULL DEFAULT 0,
@@ -108,6 +112,10 @@ addColumnIfMissing("booking_links", "bookable_until", "bookable_until TEXT");
 addColumnIfMissing("bookings", "checkout_session_id", "checkout_session_id TEXT");
 addColumnIfMissing("bookings", "amount_paid", "amount_paid REAL");
 addColumnIfMissing("bookings", "reference_images", "reference_images TEXT NOT NULL DEFAULT '[]'");
+addColumnIfMissing("bookings", "consent_token", "consent_token TEXT");
+addColumnIfMissing("bookings", "consent_json", "consent_json TEXT");
+addColumnIfMissing("bookings", "consent_signature", "consent_signature TEXT");
+addColumnIfMissing("bookings", "consent_signed_at", "consent_signed_at TEXT");
 
 // Seed artists and opening hours on first run
 const artistCount = db.prepare("SELECT COUNT(*) AS n FROM artists").get().n;
