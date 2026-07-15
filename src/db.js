@@ -1,5 +1,6 @@
 import Database from "better-sqlite3";
 import { mkdirSync } from "fs";
+import { randomBytes } from "crypto";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -208,9 +209,16 @@ if (bookingCount === 0) {
     const insertClient = db.prepare("INSERT INTO clients (name, email, phone) VALUES (?, ?, ?)");
     const insertBooking = db.prepare(`
       INSERT INTO bookings
-        (client_id, artist_id, service_id, link_id, date, start_time, duration_minutes, style, description, status, deposit_paid, price, source)
-      VALUES (@client_id, @artist_id, @service_id, @link_id, @date, @start_time, @duration_minutes, @style, @description, @status, @deposit_paid, @price, @source)
+        (client_id, artist_id, service_id, link_id, date, start_time, duration_minutes, style, description, status, deposit_paid, price, consent_token, source)
+      VALUES (@client_id, @artist_id, @service_id, @link_id, @date, @start_time, @duration_minutes, @style, @description, @status, @deposit_paid, @price, @consent_token, @source)
     `);
+
+    // A demo signature so a signed consent form looks real in the dashboard.
+    const SIGNATURE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="90" viewBox="0 0 300 90"><rect width="300" height="90" fill="#fff"/><path d="M18 62 C 34 18, 52 20, 56 52 S 72 78, 82 46 C 90 22, 102 30, 107 57 C 114 80, 132 70, 142 45 C 152 20, 167 26, 172 56 C 177 80, 197 72, 212 40 C 222 20, 242 31, 252 56 C 260 75, 276 60, 288 43" fill="none" stroke="#2e2c2b" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    const SIGNATURE_DATA_URL = `data:image/svg+xml;base64,${Buffer.from(SIGNATURE_SVG).toString("base64")}`;
+    const signConsent = db.prepare(
+      `UPDATE bookings SET consent_json = ?, consent_signature = ?, consent_signed_at = datetime('now') WHERE id = ?`
+    );
 
     // Flash-sale link: "August Special" — £350/slot, 6 slots, expires 31 Aug 2026
     const augustSpecial = db.prepare(`
@@ -226,12 +234,12 @@ if (bookingCount === 0) {
 
     const seedBookings = [
       // Confirmed full-day bookings — 9:30am-2:30pm, £350
-      { client: ["Sam Whitfield", "sam.whitfield@example.com", "07700 900111"], artist: craig.id, service: fullDaySvc.id, link: null, date: "2026-08-06", start: "09:30", dur: 300, style: "Blackwork sleeve", desc: "Full sleeve, blackwork geometric patterns down the forearm.", price: 350 },
+      { client: ["Sam Whitfield", "sam.whitfield@example.com", "07700 900111"], artist: craig.id, service: fullDaySvc.id, link: null, date: "2026-08-06", start: "09:30", dur: 300, style: "Blackwork sleeve", desc: "Full sleeve, blackwork geometric patterns down the forearm.", price: 350, consent: { dob: "1992-03-14", allergies: "Latex plasters — please use paper tape" } },
       { client: ["Ellie Marsh", "ellie.marsh@example.com", "07700 900112"], artist: elena.id, service: fullDaySvc.id, link: null, date: "2026-08-13", start: "09:30", dur: 300, style: "Realism portrait", desc: "Black & grey portrait piece, upper arm.", price: 350 },
       { client: ["Tom Brackley", "tom.brackley@example.com", "07700 900113"], artist: craig.id, service: fullDaySvc.id, link: null, date: "2026-08-20", start: "09:30", dur: 300, style: "Traditional chest piece", desc: "Bold traditional chest piece, classic colour palette.", price: 350 },
 
       // Confirmed half-day bookings — 4pm-7pm, £175
-      { client: ["Priya Anand", "priya.anand@example.com", "07700 900114"], artist: craig.id, service: halfDaySvc.id, link: null, date: "2026-08-07", start: "16:00", dur: 180, style: "Blackwork forearm piece", desc: "Blackwork botanical piece, forearm.", price: 175 },
+      { client: ["Priya Anand", "priya.anand@example.com", "07700 900114"], artist: craig.id, service: halfDaySvc.id, link: null, date: "2026-08-07", start: "16:00", dur: 180, style: "Blackwork forearm piece", desc: "Blackwork botanical piece, forearm.", price: 175, consent: { dob: "1996-11-02", allergies: "" } },
       { client: ["Callum Ross", "callum.ross@example.com", "07700 900115"], artist: elena.id, service: halfDaySvc.id, link: null, date: "2026-08-14", start: "16:00", dur: 180, style: "Realism animal portrait", desc: "Black & grey wildlife portrait, shoulder.", price: 175 },
       { client: ["Harriet Doyle", "harriet.doyle@example.com", "07700 900116"], artist: craig.id, service: halfDaySvc.id, link: null, date: "2026-08-21", start: "16:00", dur: 180, style: "Traditional flash piece", desc: "Traditional flash design, calf.", price: 175 },
 
@@ -244,10 +252,21 @@ if (bookingCount === 0) {
       { client: ["Zoe Bennett", "zoe.bennett@example.com", "07700 900120"], artist: craig.id, service: fullDaySvc.id, link: augustSpecial, date: "2026-08-19", start: "09:30", dur: 300, style: "August Special — Blackwork", desc: "Booked via the August Special flash-sale link.", price: 350 },
     ];
 
+    const HEALTH_QUESTIONS = {
+      allergies: "Any allergies (inks, latex, plasters, metals)?",
+      conditions: "Diabetes, epilepsy, haemophilia or heart condition?",
+      blood_thinners: "Taking blood thinners or antibiotics?",
+      pregnant: "Pregnant or breastfeeding?",
+      skin: "Any skin conditions at the tattoo site?",
+      alcohol: "Drunk alcohol in the last 24 hours?",
+    };
+
     for (const b of seedBookings) {
       const [name, email, phone] = b.client;
       const clientId = insertClient.run(name, email, phone).lastInsertRowid;
-      insertBooking.run({
+      // Every booking gets a consent link; a couple are pre-signed below so the
+      // dashboard shows both states.
+      const bookingId = insertBooking.run({
         client_id: clientId,
         artist_id: b.artist,
         service_id: b.service,
@@ -260,8 +279,28 @@ if (bookingCount === 0) {
         status: "confirmed",
         deposit_paid: 1,
         price: b.price,
+        consent_token: randomBytes(16).toString("hex"),
         source: "web",
-      });
+      }).lastInsertRowid;
+
+      if (b.consent) {
+        const health = Object.fromEntries(
+          Object.entries(HEALTH_QUESTIONS).map(([key, question]) => {
+            const flagged = key === "allergies" && b.consent.allergies;
+            return [key, { question, answer: flagged ? "yes" : "no", details: flagged ? b.consent.allergies : "" }];
+          })
+        );
+        signConsent.run(
+          JSON.stringify({
+            full_name: name,
+            date_of_birth: b.consent.dob,
+            health,
+            declarations: { over18: true, accurate: true, permanent: true, aftercare: true },
+          }),
+          SIGNATURE_DATA_URL,
+          bookingId
+        );
+      }
     }
   }
 }
