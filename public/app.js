@@ -127,6 +127,42 @@ function applyStudioName(name) {
   if (footName) footName.textContent = name;
 }
 
+// Optional header extras a preset can supply: a script sub-line (tagline) and a
+// framed photo above the wordmark. The photo is progressive — if it 404s we
+// hide the frame so the page still reads as a clean text header.
+function applyHeaderExtras() {
+  if (!activePreset) return;
+
+  if (activePreset.tagline) {
+    const script = document.querySelector(".brand-script");
+    if (script) script.textContent = activePreset.tagline;
+  }
+
+  if (activePreset.headerImage) {
+    const holder = $("brand-photo");
+    const header = document.querySelector(".site-header");
+    if (!holder) return;
+    const img = document.createElement("img");
+    img.alt = activePreset.name || "";
+    // If the real photo 404s, drop to a designed placeholder (if the preset
+    // supplies one); only if that also fails do we hide the frame entirely.
+    let triedFallback = false;
+    img.addEventListener("error", () => {
+      if (activePreset.headerImageFallback && !triedFallback) {
+        triedFallback = true;
+        img.src = activePreset.headerImageFallback;
+        return;
+      }
+      holder.hidden = true;
+      if (header) header.classList.remove("has-photo");
+    });
+    img.src = activePreset.headerImage;
+    holder.appendChild(img);
+    holder.hidden = false;
+    if (header) header.classList.add("has-photo");
+  }
+}
+
 // Relabel the real artists/services with the preset's names/prices. Each
 // relabelled entry keeps a REAL id (cycled if the preset lists more than
 // exist) so availability, booking, and the deposit flow keep working.
@@ -143,7 +179,15 @@ function applyServicePreset(realServices) {
   if (!pre || !pre.length || !realServices.length) return realServices;
   return pre.map((ps, i) => {
     const base = realServices[i % realServices.length];
-    return { ...base, name: ps.name || base.name, price: (ps.price !== undefined ? ps.price : base.price) };
+    return {
+      ...base,
+      name: ps.name || base.name,
+      price: (ps.price !== undefined ? ps.price : base.price),
+      // Display-only overrides — availability still runs off the real seeded
+      // service's id/duration underneath (curated presets bypass it entirely).
+      duration_minutes: (ps.duration !== undefined ? ps.duration : base.duration_minutes),
+      description: (ps.description !== undefined ? ps.description : base.description),
+    };
   });
 }
 
@@ -783,6 +827,7 @@ async function init() {
   const studio = resolveStudio();
   activePreset = studio.preset;
   applyStudioName(studio.name);
+  applyHeaderExtras();
 
   if (config.demo_mode) {
     const banner = $("demo-banner");

@@ -15,9 +15,14 @@
    nothing breaks if a lead clicks through and books.
 
    Fields (all optional except you'll usually want name + artists):
-     name     — studio name shown in the header / title / sidebar / footer
-     artists  — [{ name, styles, rate }]  (rate is the small line on the card)
-     services — [{ name, price }]  (price in whole £; omit for "varies")
+     name        — studio/artist name shown in header / title / sidebar / footer
+     tagline     — script sub-line under the wordmark (defaults to the house one)
+     headerImage — URL/path of a photo shown framed above the wordmark; if it
+                   fails to load the header quietly falls back to text
+     artists     — [{ name, styles, rate }]  (rate is the small line on the card)
+     services    — [{ name, price, duration, description }]  (price in whole £,
+                   omit for "varies"; duration in minutes and description are
+                   display-only overrides for the seeded service they relabel)
 
    Notes:
      • The generic seed has 2 artists and 6 services. If a preset lists
@@ -62,6 +67,50 @@ window.DEMO_PRESETS = {
       "2026-08-26": [ { service: "Full day session", start: "09:30" }, { service: "Half day session", start: "16:00" } ],
       "2026-08-28": [ { service: "Full day session", start: "09:30" } ],
       "2026-08-31": [ { service: "Full day session", start: "09:30" }, { service: "Half day session", start: "16:00" } ],
+    },
+  },
+
+  // Kenzie Katz — Hidden Gem Cardiff. Solo handpoke tattooist. Her Acuity-style
+  // deposit menu (small / medium / large + touch-up), priced in £, with her
+  // photo as the page header (drop the file at public/kenzie-katz.jpg — a
+  // portrait crop works best; if it's missing the header falls back to text).
+  // `availability` makes the calendar curated: only these August dates are
+  // bookable, each offering exactly the slots below.
+  "hidden-gem-cardiff": {
+    name: "Kenzie Katz",
+    tagline: "Hidden Gem Cardiff · handpoke tattoo studio",
+    headerImage: "/kenzie-katz.png",
+    headerImageFallback: "/kenzie-katz-placeholder.svg",
+    artists: [
+      { name: "Kenzie Katz", styles: "Handpoke · nature, still life, surrealism", rate: "Handpoke tattooist — deposit comes off your total" },
+    ],
+    services: [
+      {
+        name: "Small Tattoo Deposit (1-3 inches)", price: 85, duration: 90,
+        description: "Secures your appointment for a small custom tattoo. Select this once you've contacted me and had a quote — the deposit comes off the total on the day. Any small tattoo 1-3 inches can vary with size and detail; the minimum is £85.",
+      },
+      {
+        name: "Medium Tattoo Deposit (3.5-5 inches)", price: 200, duration: 120,
+        description: "Secures your appointment for a medium custom tattoo. Select this once you've contacted me and had a quote — the deposit comes off the total on the day. Medium pieces vary with size and detail; my minimum is £200.",
+      },
+      {
+        name: "Large Tattoo Deposit (5.5+)", price: 300, duration: 240,
+        description: "Secures your appointment for a large custom tattoo. Select this once you've contacted me and had a quote — the deposit comes off the total on the day. Large pieces vary with size and detail; my minimum is £300.",
+      },
+      {
+        name: "Tattoo Touch Up", price: 20, duration: 30,
+        description: "Touch-Up Policy: if you cancel or reschedule with less than 48 hours notice, and don't rebook within 24 hours of your original time, you'll no longer qualify for touch-up pricing and will need to book a new full appointment.",
+      },
+    ],
+    availability: {
+      "2026-08-04": [ { service: "Small Tattoo Deposit (1-3 inches)", start: "11:00" }, { service: "Medium Tattoo Deposit (3.5-5 inches)", start: "13:30" } ],
+      "2026-08-06": [ { service: "Large Tattoo Deposit (5.5+)", start: "11:00" } ],
+      "2026-08-11": [ { service: "Small Tattoo Deposit (1-3 inches)", start: "11:00" }, { service: "Small Tattoo Deposit (1-3 inches)", start: "14:00" }, { service: "Tattoo Touch Up", start: "16:30" } ],
+      "2026-08-13": [ { service: "Medium Tattoo Deposit (3.5-5 inches)", start: "11:00" } ],
+      "2026-08-18": [ { service: "Large Tattoo Deposit (5.5+)", start: "11:00" } ],
+      "2026-08-20": [ { service: "Small Tattoo Deposit (1-3 inches)", start: "11:00" }, { service: "Tattoo Touch Up", start: "15:00" } ],
+      "2026-08-25": [ { service: "Medium Tattoo Deposit (3.5-5 inches)", start: "11:00" }, { service: "Small Tattoo Deposit (1-3 inches)", start: "14:30" } ],
+      "2026-08-27": [ { service: "Large Tattoo Deposit (5.5+)", start: "11:00" } ],
     },
   },
 

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="380" height="464" viewBox="0 0 380 464" role="img" aria-label="Kenzie Katz — add photo">
+  <rect width="380" height="464" fill="#fdfcfb"/>
+  <rect x="0.5" y="0.5" width="379" height="463" fill="none" stroke="#e8e4e0"/>
+  <circle cx="190" cy="176" r="70" fill="#f4ece9"/>
+  <path d="M190 118a34 34 0 1 1 0 68 34 34 0 0 1 0-68zm0 78c40 0 70 22 70 54v6H120v-6c0-32 30-54 70-54z" fill="#d6a3a3"/>
+  <text x="190" y="300" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-size="46" fill="#b64b4b">Kenzie Katz</text>
+  <text x="190" y="336" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="14" letter-spacing="1.5" fill="#6a6764">HIDDEN GEM CARDIFF</text>
+  <text x="190" y="404" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="12" letter-spacing="2" fill="#9a968f">ADD PHOTO · public/kenzie-katz.jpg</text>
+</svg>

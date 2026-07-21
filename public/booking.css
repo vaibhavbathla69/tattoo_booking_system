@@ -75,6 +75,20 @@ img { display: block; max-width: 100%; }
 .header-meta { color: var(--ink-faint); }
 
 .brand { text-align: center; padding-top: 2.6rem; }
+
+/* Optional framed header photo (populated per-studio by a preset's headerImage).
+   Sits above the wordmark; tightens the top padding so the two read as one unit. */
+.site-header.has-photo .brand { padding-top: 1.6rem; }
+.brand-photo { display: flex; justify-content: center; margin-bottom: 1.5rem; }
+.brand-photo img {
+  width: 190px; height: 232px;
+  object-fit: cover; object-position: center 20%;
+  border-radius: 6px; border: 1px solid var(--hair);
+  box-shadow: 0 12px 34px rgba(46, 44, 43, 0.14);
+}
+@media (max-width: 600px) {
+  .brand-photo img { width: 152px; height: 188px; }
+}
 .wordmark {
   font-family: var(--sans);
   font-weight: 700;
