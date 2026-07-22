@@ -4,10 +4,11 @@ const $ = (id) => document.getElementById(id);
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 const state = {
-  service: null, // {id, name, duration_minutes, price, description, icon}
-  artist: null,  // {id, name, styles, bio, rate_note}
-  date: null,    // 'YYYY-MM-DD'
-  time: null,    // 'HH:MM'
+  service: null,     // {id, name, duration_minutes, price, description, icon}
+  artist: null,      // {id, name, styles, bio, rate_note}
+  flashSheets: [],   // sheet ids the customer marked (flash presets) — shown on the form
+  date: null,        // 'YYYY-MM-DD'
+  time: null,        // 'HH:MM'
 };
 
 let services = [];
@@ -25,9 +26,13 @@ let linkSlug = null;
 let linkBookableFrom = null; // link's optional booking-date window
 let linkBookableUntil = null;
 
-const STEP_ORDER = ["service", "artist", "datetime", "details"];
+// Default flow. Flash-picker presets swap this for a shorter order in init()
+// ("flash" replaces "service"; the solo artist is auto-selected so "artist"
+// is skipped entirely).
+let STEP_ORDER = ["service", "artist", "datetime", "details"];
 const STEP_TITLES = {
   service: "Select a service",
+  flash: "Choose your flash",
   artist: "Select a team member",
   datetime: "Select a date & time",
   details: "Your details",
@@ -75,7 +80,7 @@ function escapeHtml(s) {
 }
 
 function bookCtaLabel() {
-  return config.payments_enabled ? `Pay £${config.deposit_amount} deposit & book` : "Confirm booking";
+  return config.payments_enabled ? `Pay ${CURRENCY}${config.deposit_amount} deposit & book` : "Confirm booking";
 }
 
 // ---------------------------------------------------------------------------
@@ -85,6 +90,7 @@ function bookCtaLabel() {
 
 const DEFAULT_STUDIO = "Black Craft Custom Tattoos";
 let activePreset = null; // resolved from ?studio= against window.DEMO_PRESETS
+let CURRENCY = "£";      // price symbol; a preset can override with `currency`
 
 // Resolve the ?studio= param into { name, preset }. If it matches a preset
 // slug we load that studio's full config; otherwise we treat it as a plain
@@ -206,6 +212,12 @@ function curatedHasService(dateStr) {
   return curatedSlots(dateStr).length > 0;
 }
 
+// Flash mode: a preset with a `flash` block turns the first step into a visual
+// sheet picker (with size tiers) and skips the artist step.
+function flashMode() {
+  return !!(activePreset && activePreset.flash && activePreset.flash.sheets);
+}
+
 // ---------------------------------------------------------------------------
 // Navigation
 // ---------------------------------------------------------------------------
@@ -221,11 +233,12 @@ function goBack() {
 }
 
 function render() {
-  $("back-btn").hidden = linkMode || currentStep === "service" || currentStep === "done";
+  $("back-btn").hidden = linkMode || currentStep === STEP_ORDER[0] || currentStep === "done";
   $("step-title").textContent = STEP_TITLES[currentStep];
 
   const renderers = {
     service: renderServiceStep,
+    flash: renderFlashStep,
     artist: renderArtistStep,
     datetime: renderDateTimeStep,
     details: renderDetailsStep,
@@ -272,7 +285,7 @@ function durationBadge(mins) {
 }
 
 function svcRowHtml(s) {
-  const priceLabel = s.price == null ? `Click "Details" to see artist prices` : (s.price === 0 ? "Free" : `£${s.price}`);
+  const priceLabel = s.price == null ? `Click "Details" to see artist prices` : (s.price === 0 ? "Free" : `${CURRENCY}${s.price}`);
   return `
     <div class="svc-row" data-id="${s.id}">
       <span class="svc-icon">${durationBadge(s.duration_minutes)}</span>
@@ -283,6 +296,173 @@ function svcRowHtml(s) {
       </span>
       <span class="svc-chevron">›</span>
     </div>`;
+}
+
+// ---------------------------------------------------------------------------
+// Step 1 (flash presets): quantity picker + zoomable sheet gallery
+//
+// Replaces the service step for a flash artist. Pricing is by quantity (the
+// `services` are the 1/2/3-design tiers — each IS the underlying service, so
+// price, duration and curated availability run off it). The sheets are a
+// browsable, tap-to-zoom catalogue; the customer names the actual design(s)
+// in text on the details step (they can span sheets). Continue needs a tier.
+// ---------------------------------------------------------------------------
+
+function renderFlashStep() {
+  const wrap = $("step-content");
+  const flash = activePreset.flash;
+  const sheets = flash.sheets || [];
+  const ready = !!state.service;
+
+  wrap.innerHTML = `
+    ${flash.intro ? `<p class="flash-intro">${escapeHtml(flash.intro)}</p>` : ""}
+    <div class="flash-qty">
+      <span class="flash-qty__label">How many designs?</span>
+      <div class="flash-qty__chips">${services.map(qtyChipHtml).join("")}</div>
+    </div>
+    ${flashRulesHtml(flash.rules)}
+    <p class="flash-gallery__label">Tap the sheet(s) your design is from — hit <span class="zoom-glyph">⤢</span> to zoom in and read the designs</p>
+    <div class="flash-grid">${sheets.map((s, i) => flashSheetCardHtml(s, i)).join("")}</div>
+    <button class="cta" id="flash-continue"${ready ? "" : " disabled"}>Continue</button>`;
+
+  wrap.querySelectorAll(".flash-card").forEach((card) => {
+    card.addEventListener("click", () => toggleSheet(card.dataset.id));
+    card.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleSheet(card.dataset.id); }
+    });
+  });
+  // Zoom buttons sit inside the card — stop the click from also toggling select.
+  wrap.querySelectorAll(".flash-card__zoom").forEach((btn) => {
+    btn.addEventListener("click", (e) => { e.stopPropagation(); openSheetLightbox(Number(btn.dataset.idx)); });
+  });
+
+  wrap.querySelectorAll(".flash-chip").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const svc = services.find((s) => s.id === Number(chip.dataset.id));
+      if (state.service && state.service.id === svc.id) return;
+      state.service = svc;
+      state.date = null; // tier drives duration → curated slots differ
+      state.time = null;
+      renderFlashStep();
+      renderSummary();
+    });
+  });
+
+  const cont = $("flash-continue");
+  if (cont) cont.addEventListener("click", () => { if (state.service) goTo("datetime"); });
+}
+
+// onerror chain reused by both the gallery cards and the lightbox: real scan →
+// preset fallback (placeholder svg) → text tile. Inlined so it survives the
+// card being re-rendered.
+const IMG_FALLBACK_ONERROR =
+  "this.dataset.fallback?(this.src=this.dataset.fallback,this.removeAttribute('data-fallback')):this.closest('[data-noart]')?.setAttribute('data-noart','1')";
+
+function flashSheetCardHtml(sheet, idx) {
+  const fallback = sheet.imgFallback ? ` data-fallback="${escapeHtml(sheet.imgFallback)}"` : "";
+  const selected = state.flashSheets.includes(sheet.id);
+  return `
+    <div class="flash-card${selected ? " selected" : ""}" data-id="${escapeHtml(sheet.id)}" data-idx="${idx}" data-noart="0"
+         role="button" tabindex="0" aria-pressed="${selected}" aria-label="Select ${escapeHtml(sheet.name)}">
+      <span class="flash-card__art">
+        <img src="${escapeHtml(sheet.img)}" alt="${escapeHtml(sheet.name)}"${fallback} onerror="${IMG_FALLBACK_ONERROR}" />
+        <span class="flash-card__fallback">${escapeHtml(sheet.name)}</span>
+        <span class="flash-card__check" aria-hidden="true">✓</span>
+        <button class="flash-card__zoom" type="button" data-idx="${idx}" aria-label="Zoom into ${escapeHtml(sheet.name)}">⤢</button>
+      </span>
+      <span class="flash-card__name">${escapeHtml(sheet.name)}</span>
+    </div>`;
+}
+
+// Toggle a sheet's "chosen" mark (in tap order). Updates just this card so
+// selecting stays snappy and doesn't reload the gallery images.
+function toggleSheet(id) {
+  const i = state.flashSheets.indexOf(id);
+  if (i >= 0) state.flashSheets.splice(i, 1);
+  else state.flashSheets.push(id);
+  const on = state.flashSheets.includes(id);
+  const card = document.querySelector(`.flash-card[data-id="${CSS.escape(id)}"]`);
+  if (card) { card.classList.toggle("selected", on); card.setAttribute("aria-pressed", String(on)); }
+}
+
+// Names of the chosen sheets, in the order tapped — used on the details form
+// and stamped onto the booking so the artist has the reference.
+function selectedSheetNames() {
+  const sheets = (activePreset.flash && activePreset.flash.sheets) || [];
+  return state.flashSheets.map((id) => (sheets.find((s) => s.id === id) || {}).name).filter(Boolean);
+}
+
+function qtyChipHtml(svc) {
+  const selected = state.service && state.service.id === svc.id;
+  const price = svc.price == null ? "" : (svc.price === 0 ? "Free" : `${CURRENCY}${svc.price}`);
+  return `
+    <button class="flash-chip${selected ? " selected" : ""}" data-id="${svc.id}" type="button">
+      <span class="flash-chip__name">${escapeHtml(svc.name)}</span>
+      <span class="flash-chip__meta">${price || fmtDuration(svc.duration_minutes)}</span>
+    </button>`;
+}
+
+// Small rules note (ink colours, max size, off-limits placements) drawn from
+// the preset's flash.rules — shown on both the picker and the details step.
+function flashRulesHtml(rules) {
+  if (!rules) return "";
+  const items = [];
+  if (rules.ink && rules.ink.length) items.push(`Offered in <strong>${rules.ink.map(escapeHtml).join(" or ")}</strong> ink`);
+  if (rules.maxSize) items.push(`Max size <strong>${escapeHtml(rules.maxSize)}</strong>`);
+  if (rules.noPlacements) items.push(`No <strong>${escapeHtml(rules.noPlacements)}</strong> placements`);
+  if (!items.length) return "";
+  return `<ul class="flash-rules">${items.map((t) => `<li>${t}</li>`).join("")}</ul>`;
+}
+
+// Full-screen viewer so customers can actually read the (tiny) designs on a
+// sheet. Reuses the same fallback chain; ‹ › walk the gallery, Esc/backdrop
+// close.
+function openSheetLightbox(startIdx) {
+  const sheets = activePreset.flash.sheets;
+  let cur = startIdx;
+  let box = $("flash-lightbox");
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "flash-lightbox";
+    box.className = "flash-lightbox";
+    document.body.appendChild(box);
+  }
+
+  const close = () => {
+    box.classList.remove("open");
+    box.innerHTML = "";
+    document.removeEventListener("keydown", onKey);
+  };
+  const step = (d) => { cur = (cur + d + sheets.length) % sheets.length; paint(); };
+  const onKey = (e) => {
+    if (e.key === "Escape") close();
+    else if (e.key === "ArrowLeft") step(-1);
+    else if (e.key === "ArrowRight") step(1);
+  };
+
+  function paint() {
+    const s = sheets[cur];
+    const fallback = s.imgFallback ? ` data-fallback="${escapeHtml(s.imgFallback)}"` : "";
+    box.innerHTML = `
+      <div class="flash-lightbox__backdrop"></div>
+      <div class="flash-lightbox__stage">
+        <button class="flash-lightbox__nav prev" aria-label="Previous sheet">‹</button>
+        <figure class="flash-lightbox__fig">
+          <img src="${escapeHtml(s.img)}" alt="${escapeHtml(s.name)}"${fallback} onerror="this.dataset.fallback?(this.src=this.dataset.fallback,this.removeAttribute('data-fallback')):null" />
+          <figcaption>${escapeHtml(s.name)} · ${cur + 1}/${sheets.length}</figcaption>
+        </figure>
+        <button class="flash-lightbox__nav next" aria-label="Next sheet">›</button>
+        <button class="flash-lightbox__close" aria-label="Close">×</button>
+      </div>`;
+    box.querySelector(".flash-lightbox__backdrop").addEventListener("click", close);
+    box.querySelector(".flash-lightbox__close").addEventListener("click", close);
+    box.querySelector(".prev").addEventListener("click", () => step(-1));
+    box.querySelector(".next").addEventListener("click", () => step(1));
+  }
+
+  paint();
+  box.classList.add("open");
+  document.addEventListener("keydown", onKey);
 }
 
 // ---------------------------------------------------------------------------
@@ -375,9 +555,18 @@ async function loadMonthAvailability() {
   if (token === monthAvailToken) renderCalendarGrid(); // ignore stale month
 }
 
+// Earliest month a curated preset has any availability in ('YYYY-MM-01'),
+// so the calendar opens where the dates actually are instead of a fixed month.
+function earliestCuratedMonth() {
+  const av = activePreset && activePreset.availability;
+  const keys = av ? Object.keys(av).sort() : [];
+  return keys.length ? `${keys[0].slice(0, 7)}-01` : null;
+}
+
 function renderDateTimeStep() {
   if (!calendarMonthCursor) {
-    calendarMonthCursor = "2026-08-01"; // demo default — Black Craft Custom Tattoos, August 2026
+    calendarMonthCursor =
+      (curatedMode() && earliestCuratedMonth()) || "2026-08-01"; // demo default
   }
 
   const wrap = $("step-content");
@@ -508,17 +697,9 @@ async function loadSlotsForDate(dateStr) {
 // Step 4: details
 // ---------------------------------------------------------------------------
 
-function renderDetailsStep() {
-  const wrap = $("step-content");
-  wrap.innerHTML = `
-    <form id="booking-form">
-      <div class="field"><label for="f-name">Name</label><input id="f-name" type="text" required autocomplete="name" /></div>
-      <div class="field"><label for="f-email">Email</label><input id="f-email" type="email" required autocomplete="email" /></div>
-      <div class="field"><label for="f-phone">Phone <span class="optional">optional</span></label><input id="f-phone" type="tel" autocomplete="tel" /></div>
-      <div class="field">
-        <label for="f-desc">What are you thinking of getting?</label>
-        <textarea id="f-desc" rows="4" required placeholder="Placement, size, style, subject — whatever you know so far."></textarea>
-      </div>
+// Photo uploader + "anything else" — shared by both forms.
+function uploaderFieldsHtml() {
+  return `
       <div class="field">
         <label>Reference photos <span class="optional">optional</span></label>
         <div class="uploader" id="uploader">
@@ -527,16 +708,79 @@ function renderDetailsStep() {
           <span class="upload-hint">or drop images here</span>
         </div>
         <div class="upload-previews" id="upload-previews"></div>
+      </div>`;
+}
+
+function depositNoteHtml() {
+  if (!config.payments_enabled) return "";
+  return `<p class="deposit-note">${config.demo_mode ? `<strong>Demo — no real charge.</strong> This shows our secure checkout; use any Stripe test card. ` : ""}A ${CURRENCY}${config.deposit_amount} deposit secures your slot — it comes off the total on the day${config.demo_mode ? "" : ", and you'll be taken to our secure checkout to pay"}.</p>`;
+}
+
+// Flash intake — mirrors the artist's "when submitting, please include" list:
+// full name, phone, email, selected design, placement & size, plus ink colour
+// and her placement rules. Preferred days/times are already the chosen slot.
+function flashDetailsFormHtml() {
+  const rules = (activePreset.flash && activePreset.flash.rules) || {};
+  const ink = rules.ink && rules.ink.length ? rules.ink : ["Black", "Red"];
+  const chosen = selectedSheetNames();
+  return `
+    <form id="booking-form">
+      <div class="field"><label for="f-name">Full name</label><input id="f-name" type="text" required autocomplete="name" /></div>
+      <div class="field"><label for="f-phone">Phone number</label><input id="f-phone" type="tel" required autocomplete="tel" /></div>
+      <div class="field"><label for="f-email">Email</label><input id="f-email" type="email" required autocomplete="email" /></div>
+      ${chosen.length ? `<div class="field">
+        <label>Your sheet${chosen.length > 1 ? "s" : ""} <span class="optional">for reference</span></label>
+        <div class="sheet-tally">${chosen.map((n) => `<span class="sheet-tag">${escapeHtml(n)}</span>`).join("")}</div>
+      </div>` : ""}
+      <div class="field">
+        <label for="f-design">Selected flash design(s)</label>
+        <textarea id="f-design" rows="3" required placeholder="Name the design(s) and which sheet they're from — e.g. 'lucky' script (January) + cherries (February)."></textarea>
       </div>
+      <div class="field">
+        <label for="f-placement">Desired placement &amp; size</label>
+        <input id="f-placement" type="text" required placeholder="e.g. inner forearm, about 1.5 inches" />
+      </div>
+      <div class="field">
+        <label>Ink colour</label>
+        <div class="ink-toggle">
+          ${ink.map((c, i) => `<label class="ink-opt"><input type="radio" name="ink" value="${escapeHtml(c)}"${i === 0 ? " checked" : ""} /><span>${escapeHtml(c)}</span></label>`).join("")}
+        </div>
+      </div>
+      ${uploaderFieldsHtml()}
+      <div class="field">
+        <label for="f-notes">Anything else <span class="optional">optional</span></label>
+        <textarea id="f-notes" rows="2" placeholder="Anything else I should know."></textarea>
+      </div>
+      ${flashRulesHtml(activePreset.flash && activePreset.flash.rules)}
+      <p class="field-error" id="form-error" hidden></p>
+      ${depositNoteHtml()}
+      <button type="submit" class="cta" id="submit-btn">${bookCtaLabel()}</button>
+    </form>`;
+}
+
+function genericDetailsFormHtml() {
+  return `
+    <form id="booking-form">
+      <div class="field"><label for="f-name">Name</label><input id="f-name" type="text" required autocomplete="name" /></div>
+      <div class="field"><label for="f-email">Email</label><input id="f-email" type="email" required autocomplete="email" /></div>
+      <div class="field"><label for="f-phone">Phone <span class="optional">optional</span></label><input id="f-phone" type="tel" autocomplete="tel" /></div>
+      <div class="field">
+        <label for="f-desc">What are you thinking of getting?</label>
+        <textarea id="f-desc" rows="4" required placeholder="Placement, size, style, subject — whatever you know so far."></textarea>
+      </div>
+      ${uploaderFieldsHtml()}
       <div class="field">
         <label for="f-refs">Anything else / links <span class="optional">optional</span></label>
         <textarea id="f-refs" rows="2" placeholder="Pinterest or Instagram links, or notes about the idea."></textarea>
       </div>
       <p class="field-error" id="form-error" hidden></p>
-      ${config.payments_enabled ? `<p class="deposit-note">${config.demo_mode ? `<strong>Demo — no real charge.</strong> This shows our secure checkout; use any Stripe test card. ` : ""}A £${config.deposit_amount} deposit secures your slot — it comes off the total on the day${config.demo_mode ? "" : ", and you'll be taken to our secure checkout to pay"}.</p>` : ""}
+      ${depositNoteHtml()}
       <button type="submit" class="cta" id="submit-btn">${bookCtaLabel()}</button>
     </form>`;
+}
 
+function renderDetailsStep() {
+  $("step-content").innerHTML = flashMode() ? flashDetailsFormHtml() : genericDetailsFormHtml();
   $("booking-form").addEventListener("submit", submitBooking);
   wireImageUpload();
   renderPreviews();
@@ -612,6 +856,21 @@ async function submitBooking(e) {
   btn.disabled = true;
   btn.textContent = config.payments_enabled ? "Redirecting to payment…" : "Booking…";
 
+  // Flash mode assembles the description from the artist's required fields
+  // (design + placement & size + ink); generic mode uses the free-text field.
+  let description, reference_notes;
+  if (flashMode()) {
+    const design = $("f-design").value.trim();
+    const placement = $("f-placement").value.trim();
+    const ink = (document.querySelector('input[name="ink"]:checked') || {}).value || "";
+    const sheets = selectedSheetNames();
+    description = `${sheets.length ? `Sheet(s): ${sheets.join(", ")}\n` : ""}Flash design(s): ${design}\nPlacement & size: ${placement}${ink ? `\nInk: ${ink}` : ""}`;
+    reference_notes = ($("f-notes") ? $("f-notes").value : "").trim();
+  } else {
+    description = $("f-desc").value;
+    reference_notes = $("f-refs").value;
+  }
+
   try {
     const res = await fetch("/api/bookings", {
       method: "POST",
@@ -620,8 +879,8 @@ async function submitBooking(e) {
         name: $("f-name").value,
         email: $("f-email").value,
         phone: $("f-phone").value,
-        description: $("f-desc").value,
-        reference_notes: $("f-refs").value,
+        description,
+        reference_notes,
         reference_images: refImages,
         artist_id: state.artist.id,
         service_id: state.service.id,
@@ -685,7 +944,7 @@ function renderSummary() {
 
   const priceLabel = state.service.price == null
     ? (state.artist ? (state.artist.rate_note || "Price varies by artist") : "Price varies by artist")
-    : (state.service.price === 0 ? "Free" : `£${state.service.price}`);
+    : (state.service.price === 0 ? "Free" : `${CURRENCY}${state.service.price}`);
 
   const lines = [`
     <div class="summary-line">
@@ -736,6 +995,12 @@ function renderLinkUnavailable(data) {
 
 async function loadStudioHoursBlurb() {
   hours = await fetch("/api/hours").then((r) => r.json());
+  // A preset can replace the computed opening-hours line with a fixed note —
+  // e.g. an appointment-only artist who doesn't keep public walk-in hours.
+  if (activePreset && activePreset.hoursBlurb) {
+    $("studio-hours-blurb").textContent = activePreset.hoursBlurb;
+    return;
+  }
   const openDays = hours.filter((h) => !h.closed);
   const closedDays = hours.filter((h) => h.closed).map((h) => DAY_NAMES[h.day_of_week]);
   $("studio-hours-blurb").textContent =
@@ -826,6 +1091,7 @@ async function init() {
 
   const studio = resolveStudio();
   activePreset = studio.preset;
+  CURRENCY = (activePreset && activePreset.currency) || "£";
   applyStudioName(studio.name);
   applyHeaderExtras();
 
@@ -854,6 +1120,14 @@ async function init() {
   // Relabel with the studio's preset (display-only; real ids preserved).
   services = applyServicePreset(svcs);
   artists = applyArtistPreset(arts);
+
+  // Flash presets: the sheet picker is step 1 and the (solo) artist is chosen
+  // automatically, so drop the artist step and swap "service" for "flash".
+  if (flashMode()) {
+    STEP_ORDER = ["flash", "datetime", "details"];
+    state.artist = artists[0] || null;
+    currentStep = STEP_ORDER[0];
+  }
 
   render();
 }

@@ -2,3 +2,6 @@ node_modules/
 .env
 data/
 *.log
+
+# Client builds are their own separate repos (deployed independently)
+clients/

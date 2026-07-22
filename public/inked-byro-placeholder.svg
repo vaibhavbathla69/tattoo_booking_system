@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="380" height="464" viewBox="0 0 380 464" role="img" aria-label="inked.byro — add photo">
+  <rect width="380" height="464" fill="#fdfcfb"/>
+  <rect x="0.5" y="0.5" width="379" height="463" fill="none" stroke="#e8e4e0"/>
+  <circle cx="190" cy="176" r="70" fill="#f4ece9"/>
+  <g stroke="#b64b4b" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" transform="translate(190 176) scale(1.7)">
+    <path d="M0-16v30M0-6C-4-20-26-16-22-4-19 4-4 6 0 2 4 6 19 4 22-4 26-16 4-20 0-6M-6 12l-4 8M6 12l4 8"/>
+  </g>
+  <text x="190" y="300" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-size="42" fill="#b64b4b">inked.byro</text>
+  <text x="190" y="336" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="14" letter-spacing="1.5" fill="#6a6764">FLASH TATTOO · ROOMINA</text>
+  <text x="190" y="404" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="12" letter-spacing="2" fill="#9a968f">ADD PHOTO · public/inked-byro.jpg</text>
+</svg>

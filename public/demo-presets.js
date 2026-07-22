@@ -24,6 +24,24 @@
                    omit for "varies"; duration in minutes and description are
                    display-only overrides for the seeded service they relabel)
 
+   Optional visual FLASH picker (see "inked-byro" below):
+     flash       — turns the flow into "choose your flash → date/time → your
+                   details" (the artist step is skipped, solo artist auto-
+                   selected). Shape:
+                     flash: {
+                       intro:  "…" (optional line above the picker),
+                       rules:  { ink:[…], maxSize:"…", noPlacements:"…" },
+                       sheets: [{ id, name, img, imgFallback }]  // zoomable gallery
+                     }
+                   The `services` array becomes the SELECTABLE TIERS the
+                   customer picks (for this artist: quantity — 1/2/3 designs),
+                   each mapping to a real seeded service so pricing/availability/
+                   booking keep working. The sheets are a browsable, tap-to-zoom
+                   catalogue (designs are named on the sheet, chosen by text on
+                   the details step). `sheets[].img` is the artwork; if it 404s
+                   it falls back to `imgFallback` then a text tile. `currency`
+                   (top-level, default "£") sets the price symbol shown.
+
    Notes:
      • The generic seed has 2 artists and 6 services. If a preset lists
        MORE than that, the extras reuse a real one's calendar under the
@@ -111,6 +129,70 @@ window.DEMO_PRESETS = {
       "2026-08-20": [ { service: "Small Tattoo Deposit (1-3 inches)", start: "11:00" }, { service: "Tattoo Touch Up", start: "15:00" } ],
       "2026-08-25": [ { service: "Medium Tattoo Deposit (3.5-5 inches)", start: "11:00" }, { service: "Small Tattoo Deposit (1-3 inches)", start: "14:30" } ],
       "2026-08-27": [ { service: "Large Tattoo Deposit (5.5+)", start: "11:00" } ],
+    },
+  },
+
+  // inked.byro — Roomina, a solo FLASH tattoo artist (her real Instagram flash
+  // offer). She posts a monthly flash sheet (Jan–Jun so far) and books the
+  // current Jul/Aug/Sep drop off them. Customers used to DM: full name, phone,
+  // email, selected design, placement & size, preferred days/times. This preset
+  // replaces that with a zoomable sheet gallery + quantity picker → curated
+  // calendar → a details form matching her checklist. Pricing is by QUANTITY
+  // (her posted bundle: 1/$75, 2/$135, 3/$185) — the `services` are those tiers,
+  // mapped onto real seeded services; `availability` is keyed by their names.
+  // Drop her real sheet scans at public/flash/<id>.jpg (january.jpg … june.jpg)
+  // — until then the generated placeholders (public/flash/<id>.svg) show.
+  "inked-byro": {
+    name: "Denver Fine Line Tattoos",
+    tagline: "Roomina · monthly flash",
+    currency: "$",
+    hoursBlurb: "Private studio — by appointment only. Book a flash slot below.",
+    headerImage: "/Roomina.jpg",
+    headerImageFallback: "/inked-byro-placeholder.svg",
+    artists: [
+      { name: "Roomina", styles: "Flash · fine-line, illustrative", rate: "Flash only — black or red ink" },
+    ],
+    // Quantity bundle from her post. Duration grows with the count so the
+    // curated slots space out sensibly; the exact designs are named on the
+    // details step (any designs, from any sheet).
+    services: [
+      { name: "1 design",  price: 75,  duration: 60,  description: "Any one flash design, up to 2 inches. Black or red ink." },
+      { name: "2 designs", price: 135, duration: 90,  description: "Any two flash designs (from any sheet), up to 2 inches each." },
+      { name: "3 designs", price: 185, duration: 120, description: "Any three flash designs — best value. Up to 2 inches each." },
+    ],
+    flash: {
+      intro: "Browse the monthly flash sheets — tap any sheet to zoom in and read the designs — then choose how many you'd like.",
+      rules: {
+        ink: ["Black", "Red"],
+        maxSize: "2 inches (depending on design)",
+        noPlacements: "hands, fingers, neck, or feet",
+      },
+      sheets: [
+        { id: "jan", name: "January Flash",  img: "/flash/January.png",  imgFallback: "/flash/january.svg" },
+        { id: "feb", name: "February Flash", img: "/flash/February.png", imgFallback: "/flash/february.svg" },
+        { id: "mar", name: "March Flash",    img: "/flash/March.png",    imgFallback: "/flash/march.svg" },
+        { id: "apr", name: "April Flash",    img: "/flash/April.png",    imgFallback: "/flash/april.svg" },
+        { id: "may", name: "May Flash",      img: "/flash/May.png",      imgFallback: "/flash/may.svg" },
+        { id: "jun", name: "June Flash",     img: "/flash/june.png",     imgFallback: "/flash/june.svg" },
+      ],
+    },
+    // Curated Jul–Sep 2026 availability (her current drop window), keyed by
+    // quantity tier. Bigger bundles take longer, so they get fewer slots.
+    availability: {
+      "2026-07-22": [ { service: "1 design", start: "11:00" }, { service: "1 design", start: "12:00" }, { service: "2 designs", start: "14:00" } ],
+      "2026-07-25": [ { service: "1 design", start: "11:00" }, { service: "2 designs", start: "13:00" }, { service: "3 designs", start: "15:00" } ],
+      "2026-07-29": [ { service: "1 design", start: "11:00" }, { service: "1 design", start: "12:00" }, { service: "1 design", start: "13:00" } ],
+      "2026-08-05": [ { service: "1 design", start: "11:00" }, { service: "2 designs", start: "13:00" } ],
+      "2026-08-08": [ { service: "3 designs", start: "11:00" } ],
+      "2026-08-12": [ { service: "1 design", start: "11:00" }, { service: "1 design", start: "12:00" }, { service: "2 designs", start: "14:00" } ],
+      "2026-08-19": [ { service: "1 design", start: "11:00" }, { service: "2 designs", start: "13:00" }, { service: "1 design", start: "15:00" } ],
+      "2026-08-22": [ { service: "3 designs", start: "11:00" } ],
+      "2026-08-26": [ { service: "1 design", start: "11:00" }, { service: "1 design", start: "12:00" }, { service: "1 design", start: "13:30" } ],
+      "2026-09-02": [ { service: "1 design", start: "11:00" }, { service: "2 designs", start: "13:00" } ],
+      "2026-09-05": [ { service: "3 designs", start: "11:00" }, { service: "1 design", start: "14:30" } ],
+      "2026-09-09": [ { service: "1 design", start: "11:00" }, { service: "2 designs", start: "13:30" } ],
+      "2026-09-16": [ { service: "1 design", start: "11:00" }, { service: "1 design", start: "12:00" }, { service: "2 designs", start: "14:00" } ],
+      "2026-09-19": [ { service: "3 designs", start: "11:00" } ],
     },
   },
 
