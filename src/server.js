@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import crypto from "crypto";
+import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import db, { findOrCreateClient } from "./db.js";
@@ -49,18 +50,56 @@ app.post("/api/webhooks/stripe", express.raw({ type: "application/json" }), (req
 // Limit raised so bookings can carry a few downscaled reference photos
 // (data URLs) in the JSON body.
 app.use(express.json({ limit: "12mb" }));
-app.use(express.static(path.join(__dirname, "..", "public")));
+// index:false so the "/" and "/book" routes below (which inject per-studio
+// <title>/OG meta) own the booking page; static still serves every asset.
+app.use(express.static(path.join(__dirname, "..", "public"), { index: false }));
+
+// ---------------------------------------------------------------------------
+// Per-studio link meta. app.js relabels the page live once it loads, but link
+// crawlers (Slack/iMessage/WhatsApp) don't run JS — so we inject the studio's
+// name into <title>/OG tags server-side, keyed off ?studio=. Mirrors the
+// display names in public/demo-presets.js (only needed for the crawler meta).
+// ---------------------------------------------------------------------------
+const STUDIO_META = {
+  "classic-tattoo": "Classic Tattoo Studio",
+  "black-craft": "Black Craft Custom Tattoos",
+  "hidden-gem-cardiff": "Kenzie Katz",
+  "inked-byro": "Denver Fine Line Tattoos",
+};
+const escHtml = (s) =>
+  String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function studioDisplayName(raw) {
+  const v = (raw || "").toString().trim();
+  if (!v) return null;
+  const slug = v.toLowerCase().replace(/\s+/g, "-");
+  return STUDIO_META[v] || STUDIO_META[slug] || v.replace(/\s+/g, " ").slice(0, 48);
+}
+
+const INDEX_HTML = fs.readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf8");
+
+function sendBookingPage(req, res) {
+  const name = studioDisplayName(req.query.studio);
+  if (!name) return res.type("html").send(INDEX_HTML); // base URL — leave defaults
+  const title = `${name} — Book a Session`;
+  const desc = `Book your appointment with ${name} online.`;
+  const html = INDEX_HTML
+    .replace(/<title>[^<]*<\/title>/, `<title>${escHtml(title)}</title>`)
+    .replace(/(<meta property="og:title" content=")[^"]*(")/, `$1${escHtml(title)}$2`)
+    .replace(/(<meta name="description" content=")[^"]*(")/, `$1${escHtml(desc)}$2`)
+    .replace(/(<meta property="og:description" content=")[^"]*(")/, `$1${escHtml(desc)}$2`);
+  res.type("html").send(html);
+}
+
+// The booking SPA — served for the root and the /book alias, both of which
+// take ?studio=… (e.g. demo.yoursite.com/book?studio=Golden+Goose+Tattoo).
+app.get("/", sendBookingPage);
+app.get("/book", sendBookingPage);
 
 // Shareable booking links (e.g. an Instagram flash-drop link) land on the
 // same customer SPA; app.js reads the slug from the URL and switches into
 // link mode instead of the normal service/artist browse flow.
 app.get("/b/:slug", (req, res) => {
-  res.sendFile(path.join(__dirname, "..", "public", "index.html"));
-});
-
-// /book is an alias for the booking page so demo links read nicely, e.g.
-// demo.yoursite.com/book?studio=Golden+Goose+Tattoo (app.js reads ?studio=).
-app.get("/book", (req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "index.html"));
 });
 
@@ -156,7 +195,7 @@ app.get("/api/links/:slug", (req, res) => {
 });
 
 app.post("/api/bookings", async (req, res) => {
-  const { name, email, phone, artist_id, service_id, date, start_time, description, reference_notes, reference_images, link_slug } =
+  const { name, email, phone, artist_id, service_id, date, start_time, description, reference_notes, reference_images, link_slug, studio } =
     req.body || {};
 
   // Keep only valid image data URLs, capped, so a booking can't carry junk or
@@ -259,6 +298,7 @@ app.post("/api/bookings", async (req, res) => {
   try {
     const session = await createDepositCheckout({
       bookingId, artistName: artist.name, styleLabel, date, startTime: start_time,
+      returnStudio: typeof studio === "string" ? studio.slice(0, 64) : "",
     });
     db.prepare("UPDATE bookings SET checkout_session_id = ? WHERE id = ?").run(session.id, bookingId);
     return res.status(201).json({ booking_id: bookingId, checkout_url: session.url });

@@ -47,8 +47,12 @@ function baseUrl() {
  * already exist as 'pending'; its id travels in metadata so the webhook can
  * confirm it. Returns the Stripe session (use `.url` to redirect the customer).
  */
-export async function createDepositCheckout({ bookingId, artistName, styleLabel, date, startTime }) {
+export async function createDepositCheckout({ bookingId, artistName, styleLabel, date, startTime, returnStudio }) {
   const base = baseUrl();
+  // Carry the studio slug back through the redirect so the customer lands on
+  // the SAME branded page (?studio=…) after paying or cancelling, instead of
+  // dropping to the default studio.
+  const studioQS = returnStudio ? `&studio=${encodeURIComponent(returnStudio)}` : "";
   return stripe.checkout.sessions.create({
     mode: "payment",
     payment_method_types: ["card"],
@@ -67,8 +71,8 @@ export async function createDepositCheckout({ bookingId, artistName, styleLabel,
     ],
     metadata: { booking_id: String(bookingId) },
     // Stripe substitutes the real session id into this placeholder on redirect.
-    success_url: `${base}/?booking=paid&session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${base}/?booking=cancelled&session_id={CHECKOUT_SESSION_ID}`,
+    success_url: `${base}/?booking=paid&session_id={CHECKOUT_SESSION_ID}${studioQS}`,
+    cancel_url: `${base}/?booking=cancelled&session_id={CHECKOUT_SESSION_ID}${studioQS}`,
   });
 }
 

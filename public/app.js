@@ -95,8 +95,19 @@ let CURRENCY = "£";      // price symbol; a preset can override with `currency`
 // Resolve the ?studio= param into { name, preset }. If it matches a preset
 // slug we load that studio's full config; otherwise we treat it as a plain
 // studio name (so ?studio=Golden+Goose+Tattoo still just swaps the name).
+function currentStudioParam() {
+  return (new URLSearchParams(location.search).get("studio") || "").trim();
+}
+
+// Root link that keeps the current studio, so "start again" / "book another"
+// don't drop back to the default studio's branding.
+function homeHref() {
+  const s = currentStudioParam();
+  return s ? `/?studio=${encodeURIComponent(s)}` : "/";
+}
+
 function resolveStudio() {
-  const raw = (new URLSearchParams(location.search).get("studio") || "").trim();
+  const raw = currentStudioParam();
   if (!raw) return { name: DEFAULT_STUDIO, preset: null };
   const presets = window.DEMO_PRESETS || {};
   const slug = raw.toLowerCase().replace(/\s+/g, "-");
@@ -885,6 +896,7 @@ async function submitBooking(e) {
         artist_id: state.artist.id,
         service_id: state.service.id,
         link_slug: linkMode ? linkSlug : undefined,
+        studio: currentStudioParam() || undefined,
         date: state.date,
         start_time: state.time,
       }),
@@ -1146,7 +1158,7 @@ async function renderPaymentReturn(kind, sessionId) {
         <span class="confirm-mark">✦</span>
         <h2>Payment cancelled</h2>
         <p class="confirm-note">No deposit was taken and the slot wasn't booked. Start again whenever you're ready.</p>
-        <a href="/" class="cta ghost" style="display:inline-block;text-decoration:none;">Start a new booking</a>
+        <a href="${homeHref()}" class="cta ghost" style="display:inline-block;text-decoration:none;">Start a new booking</a>
       </div>`;
     return;
   }
@@ -1157,7 +1169,7 @@ async function renderPaymentReturn(kind, sessionId) {
       <h2>You're booked in.</h2>
       <p class="confirm-note" id="pay-return-msg">Confirming your deposit…</p>
       <div id="pay-return-consent"></div>
-      <a href="/" class="cta ghost" style="display:inline-block;text-decoration:none;margin-top:0.7rem;">Book another session</a>
+      <a href="${homeHref()}" class="cta ghost" style="display:inline-block;text-decoration:none;margin-top:0.7rem;">Book another session</a>
     </div>`;
 
   const msg = $("pay-return-msg");
