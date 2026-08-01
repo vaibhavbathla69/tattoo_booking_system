@@ -37,7 +37,9 @@ services:
       # --- Enquiry emails (Resend). All optional — blank RESEND_API_KEY = no
       #     emails (enquiries still work + are reviewed in the dashboard). ---
       - key: EMAIL_FROM
-        value: Abigail Rae <onboarding@resend.dev>
+        sync: false                         # "Abigail Rae <hello@yourdomain>" — must be on a
+                                            # VERIFIED resend.com domain to email customers;
+                                            # onboarding@resend.dev only reaches your own address
       - key: RESEND_API_KEY
         sync: false                         # from https://resend.com — enables enquiry emails
       - key: OWNER_EMAIL
