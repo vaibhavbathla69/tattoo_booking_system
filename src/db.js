@@ -93,9 +93,35 @@ CREATE TABLE IF NOT EXISTS bookings (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Enquire-first flow: a customer describes an idea (no date picked). The owner
+-- reviews it in the dashboard and approves it (recording a note + optional
+-- price) or declines it. Mirrors the black-craft build's enquiry model.
+CREATE TABLE IF NOT EXISTS enquiries (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  email TEXT,
+  phone TEXT,
+  description TEXT NOT NULL DEFAULT '',     -- the customer's idea
+  tattoo_type TEXT NOT NULL DEFAULT '',     -- 'flash' | 'custom' | 'unsure' | ''
+  placement TEXT NOT NULL DEFAULT '',
+  size TEXT NOT NULL DEFAULT '',
+  budget TEXT NOT NULL DEFAULT '',          -- their rough budget (free text)
+  reference_images TEXT NOT NULL DEFAULT '[]',  -- JSON array of data URLs
+  studio TEXT NOT NULL DEFAULT '',          -- ?studio= slug the enquiry came from
+  status TEXT NOT NULL DEFAULT 'new'
+    CHECK (status IN ('new','approved','declined')),
+  quoted_price REAL,                        -- optional price offered on approval
+  reply_note TEXT NOT NULL DEFAULT '',      -- the owner's message to the customer
+  responded_at TEXT,                        -- when approved/declined
+  approve_token TEXT,                       -- unguessable id for the customer's book-at-agreed-price link
+  booking_id INTEGER REFERENCES bookings(id), -- set once the customer books off the link
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_bookings_date ON bookings(date);
 CREATE INDEX IF NOT EXISTS idx_bookings_artist ON bookings(artist_id, date);
 CREATE INDEX IF NOT EXISTS idx_clients_email ON clients(email);
+CREATE INDEX IF NOT EXISTS idx_enquiries_status ON enquiries(status, created_at);
 `);
 
 // Lightweight migration for DBs created before rate_note / service_id existed.
@@ -117,6 +143,39 @@ addColumnIfMissing("bookings", "consent_token", "consent_token TEXT");
 addColumnIfMissing("bookings", "consent_json", "consent_json TEXT");
 addColumnIfMissing("bookings", "consent_signature", "consent_signature TEXT");
 addColumnIfMissing("bookings", "consent_signed_at", "consent_signed_at TEXT");
+
+// The enquiries table gained owner-review columns (and a new status set). A DB
+// created with the earlier shape is recreated here — it only ever held
+// unreviewed enquiries, so there's nothing to preserve in a demo.
+const enqCols = db.prepare("PRAGMA table_info(enquiries)").all();
+if (enqCols.length && !enqCols.some((c) => c.name === "quoted_price")) {
+  db.exec(`
+    DROP TABLE IF EXISTS enquiries;
+    CREATE TABLE enquiries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      email TEXT,
+      phone TEXT,
+      description TEXT NOT NULL DEFAULT '',
+      tattoo_type TEXT NOT NULL DEFAULT '',
+      placement TEXT NOT NULL DEFAULT '',
+      size TEXT NOT NULL DEFAULT '',
+      budget TEXT NOT NULL DEFAULT '',
+      reference_images TEXT NOT NULL DEFAULT '[]',
+      studio TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'new'
+        CHECK (status IN ('new','approved','declined')),
+      quoted_price REAL,
+      reply_note TEXT NOT NULL DEFAULT '',
+      responded_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_enquiries_status ON enquiries(status, created_at);
+  `);
+}
+// The book-at-agreed-price link columns, added after the review flow shipped.
+addColumnIfMissing("enquiries", "approve_token", "approve_token TEXT");
+addColumnIfMissing("enquiries", "booking_id", "booking_id INTEGER REFERENCES bookings(id)");
 
 // Seed artists and opening hours on first run
 const artistCount = db.prepare("SELECT COUNT(*) AS n FROM artists").get().n;
@@ -336,6 +395,69 @@ export function findOrCreateClient({ name, email, phone }) {
     .prepare("INSERT INTO clients (name, email, phone) VALUES (?, ?, ?)")
     .run(cleanName, cleanEmail, phone || null);
   return db.prepare("SELECT * FROM clients WHERE id = ?").get(result.lastInsertRowid);
+}
+
+/** Store a customer enquiry (the "enquire first" flow). Returns the new row. */
+export function createEnquiry(e) {
+  const imgs = Array.isArray(e.reference_images) ? e.reference_images : [];
+  const result = db
+    .prepare(
+      `INSERT INTO enquiries
+        (name, email, phone, description, tattoo_type, placement, size, budget, reference_images, studio)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(
+      (e.name || "").trim(),
+      e.email ? e.email.trim() : null,
+      e.phone ? e.phone.trim() : null,
+      (e.description || "").trim(),
+      e.tattoo_type || "",
+      (e.placement || "").trim(),
+      (e.size || "").trim(),
+      (e.budget || "").trim(),
+      JSON.stringify(imgs),
+      e.studio || ""
+    );
+  return db.prepare("SELECT * FROM enquiries WHERE id = ?").get(result.lastInsertRowid);
+}
+
+/** Owner review actions on an enquiry. */
+export function listEnquiries() {
+  return db
+    .prepare(
+      `SELECT id, name, email, phone, description, tattoo_type, placement, size, budget,
+              reference_images, studio, status, quoted_price, reply_note, responded_at,
+              approve_token, booking_id, created_at
+         FROM enquiries ORDER BY created_at DESC`
+    )
+    .all();
+}
+export function getEnquiry(id) {
+  return db.prepare("SELECT * FROM enquiries WHERE id = ?").get(id);
+}
+export function getEnquiryByToken(token) {
+  if (!token) return undefined;
+  return db.prepare("SELECT * FROM enquiries WHERE approve_token = ?").get(token);
+}
+export function approveEnquiry(id, { quotedPrice = null, replyNote = "", approveToken = null } = {}) {
+  // A book-at-agreed-price link only makes sense with a price; keep any existing
+  // token if this is a re-approval so the customer's link stays stable.
+  db.prepare(
+    `UPDATE enquiries SET status = 'approved', quoted_price = ?, reply_note = ?,
+            approve_token = COALESCE(approve_token, ?), responded_at = datetime('now')
+       WHERE id = ?`
+  ).run(quotedPrice, replyNote, quotedPrice != null ? approveToken : null, id);
+  return getEnquiry(id);
+}
+export function markEnquiryBooked(id, bookingId) {
+  db.prepare("UPDATE enquiries SET booking_id = ? WHERE id = ?").run(bookingId, id);
+  return getEnquiry(id);
+}
+export function declineEnquiry(id) {
+  db.prepare(
+    "UPDATE enquiries SET status = 'declined', responded_at = datetime('now') WHERE id = ?"
+  ).run(id);
+  return getEnquiry(id);
 }
 
 export default db;

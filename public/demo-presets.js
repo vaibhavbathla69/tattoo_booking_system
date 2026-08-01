@@ -196,6 +196,47 @@ window.DEMO_PRESETS = {
     },
   },
 
+  // Abigail Rae — fine line / flash / custom, solo artist. She has her own
+  // landing hero at /abigail (public/abigail-rae.html) whose CTA lands here.
+  // Booking model is the deposit menu (like Kenzie Katz): a flat "Flash design"
+  // price plus custom deposit tiers by size. `availability` curates the calendar
+  // to her real open dates/slots. Header stays text-only (no photo yet).
+  "abigail-rae": {
+    name: "Abigail Rae",
+    tagline: "Fine line · flash · custom tattoo",
+    artists: [
+      { name: "Abigail Rae", styles: "Fine line · flash · custom", rate: "Solo artist — deposit comes off your total" },
+    ],
+    services: [
+      {
+        name: "Flash design", price: 120, duration: 90,
+        description: "A ready-to-go design from the current flash sheet — flat price, no quote needed. Message me the design you want before booking so I can hold it for you.",
+      },
+      {
+        name: "Small Custom Deposit (1-3 inches)", price: 85, duration: 90,
+        description: "Secures your appointment for a small custom piece. Book once we've chatted through your idea and I've quoted it — the deposit comes off the total on the day. Small pieces (1-3 inches) vary with detail; minimum £85.",
+      },
+      {
+        name: "Medium Custom Deposit (3.5-5 inches)", price: 200, duration: 150,
+        description: "Secures your appointment for a medium custom piece. Book once we've chatted through your idea and I've quoted it — the deposit comes off the total on the day. Medium pieces vary with detail; minimum £200.",
+      },
+      {
+        name: "Large Custom Deposit (5.5+)", price: 300, duration: 240,
+        description: "Secures your appointment for a large custom piece. Book once we've chatted through your idea and I've quoted it — the deposit comes off the total on the day. Large pieces vary with detail; minimum £300.",
+      },
+    ],
+    availability: {
+      "2026-08-05": [ { service: "Flash design", start: "11:00" }, { service: "Small Custom Deposit (1-3 inches)", start: "13:30" } ],
+      "2026-08-07": [ { service: "Medium Custom Deposit (3.5-5 inches)", start: "11:00" } ],
+      "2026-08-12": [ { service: "Flash design", start: "11:00" }, { service: "Flash design", start: "13:00" }, { service: "Small Custom Deposit (1-3 inches)", start: "15:30" } ],
+      "2026-08-14": [ { service: "Large Custom Deposit (5.5+)", start: "11:00" } ],
+      "2026-08-19": [ { service: "Flash design", start: "11:00" }, { service: "Medium Custom Deposit (3.5-5 inches)", start: "13:30" } ],
+      "2026-08-21": [ { service: "Small Custom Deposit (1-3 inches)", start: "11:00" }, { service: "Flash design", start: "14:00" } ],
+      "2026-08-26": [ { service: "Large Custom Deposit (5.5+)", start: "11:00" } ],
+      "2026-08-28": [ { service: "Flash design", start: "11:00" }, { service: "Small Custom Deposit (1-3 inches)", start: "13:00" }, { service: "Medium Custom Deposit (3.5-5 inches)", start: "15:30" } ],
+    },
+  },
+
   // Add more studios here, e.g.:
   // "golden-goose": {
   //   name: "Golden Goose Tattoo",

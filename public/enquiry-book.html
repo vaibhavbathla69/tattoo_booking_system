@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Book your session</title>
+  <meta name="robots" content="noindex" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Pinyon+Script&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --paper:#fdfcfb; --ink:#2e2c2b; --ink-soft:#6a6764; --line:#e8e4e0;
+      --accent:#c0392b; --sans:"DM Sans",system-ui,sans-serif;
+    }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body {
+      background:var(--paper); color:var(--ink); font-family:var(--sans); font-weight:300;
+      -webkit-font-smoothing:antialiased; cursor:url('abigail-assets/cursor64.png') 32 32, auto;
+    }
+    a, button { cursor:url('abigail-assets/cursor64_mirror.png') 32 32, pointer; }
+
+    .wrap { max-width:600px; margin:0 auto; padding:2.5rem 1.5rem 4rem; }
+    .topbar { display:flex; align-items:baseline; justify-content:space-between; gap:1rem; margin-bottom:1.8rem; }
+    .eyebrow { font-size:.68rem; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-soft); }
+    .wordmark {
+      font-family:Georgia,'Times New Roman',serif; font-variant:small-caps; letter-spacing:.05em;
+      line-height:.9; font-size:clamp(1.5rem,6.5vw,2.1rem); text-align:right;
+    }
+    .wordmark .accent { color:var(--accent); }
+
+    .lead-h { font-family:"Pinyon Script",cursive; font-size:clamp(2.3rem,9vw,3rem); opacity:.8; line-height:1; margin-bottom:.5rem; }
+    .idea { font-size:.92rem; line-height:1.6; color:var(--ink-soft); margin-bottom:1.6rem; white-space:pre-wrap; }
+    .idea .lbl { display:block; font-size:.68rem; letter-spacing:.06em; text-transform:uppercase; color:var(--ink); margin-bottom:.3rem; }
+
+    /* price summary */
+    .price-card { border:1px solid var(--line); border-radius:4px; background:#fff; padding:1.1rem 1.2rem; margin-bottom:1.8rem; }
+    .price-row { display:flex; justify-content:space-between; align-items:baseline; font-size:.95rem; padding:.3rem 0; }
+    .price-row.total { border-top:1px solid var(--line); margin-top:.4rem; padding-top:.6rem; }
+    .price-row .k { color:var(--ink-soft); }
+    .price-row .v { font-weight:500; }
+    .price-row.big .v { font-size:1.3rem; color:var(--accent); font-weight:600; }
+    .note { font-size:.85rem; line-height:1.6; color:var(--ink); background:#f6f2ef; border-radius:4px; padding:.7rem .85rem; margin-bottom:1.6rem; white-space:pre-wrap; }
+
+    .step-lbl { font-size:.7rem; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--ink); margin:0 0 .6rem; }
+
+    .days { display:flex; gap:.5rem; overflow-x:auto; padding-bottom:.5rem; scrollbar-width:thin; }
+    .day {
+      flex:0 0 auto; border:1px solid var(--line); border-radius:6px; background:#fff; padding:.5rem .7rem;
+      text-align:center; min-width:56px; line-height:1.25;
+    }
+    .day .dow { font-size:.62rem; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-soft); }
+    .day .dnum { font-size:1.05rem; font-weight:500; }
+    .day.sel { border-color:var(--accent); color:var(--accent); }
+    .day.sel .dow { color:var(--accent); }
+
+    .slots { display:flex; flex-wrap:wrap; gap:.5rem; margin:1rem 0 0; min-height:1.2rem; }
+    .slot { border:1px solid var(--line); border-radius:999px; background:#fff; padding:.45rem .95rem; font-size:.85rem; color:var(--ink); }
+    .slot.sel { border-color:var(--accent); color:var(--accent); }
+    .muted { color:var(--ink-soft); font-size:.85rem; }
+
+    .field { display:flex; flex-direction:column; gap:.35rem; margin:1.6rem 0 0; }
+    .field label { font-size:.7rem; font-weight:600; letter-spacing:.04em; text-transform:uppercase; }
+    .field input { font-family:var(--sans); font-size:.95rem; border:1px solid var(--line); border-radius:2px; padding:.7rem .8rem; background:#fff; }
+    .field input:focus { outline:none; border-color:var(--accent); }
+
+    .btn {
+      margin-top:1.8rem; width:100%; border:1px solid var(--accent); color:#fff; background:var(--accent);
+      text-transform:uppercase; letter-spacing:.14em; font-size:.72rem; font-weight:600; padding:.95rem 1.2rem; border-radius:3px;
+    }
+    .btn:disabled { opacity:.45; }
+    .btn.ghost { background:none; color:var(--accent); }
+    .err { color:var(--accent); font-size:.85rem; margin-top:.9rem; min-height:1em; }
+
+    .done { text-align:center; padding:2.5rem 0; }
+    .done .lead-h { opacity:.85; }
+    .done p { color:var(--ink-soft); line-height:1.7; max-width:42ch; margin:0 auto; }
+    .center { text-align:center; padding:3rem 1rem; color:var(--ink-soft); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <span class="eyebrow">Your session</span>
+      <h1 class="wordmark" id="wordmark">Studio</h1>
+    </div>
+    <div id="view"><p class="center">Loading…</p></div>
+  </div>
+
+  <script>
+    const token = decodeURIComponent(location.pathname.split("/").filter(Boolean).pop() || "");
+    const view = document.getElementById("view");
+    const wordmarkEl = document.getElementById("wordmark");
+    const money = (n) => "£" + Number(n).toFixed(0);
+    const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+
+    let ctx = null;
+    let selDate = null, selTime = null;
+
+    function twoLineWordmark(name) {
+      const words = String(name).trim().split(/\s+/);
+      if (words.length < 2) return esc(name);
+      const first = words.slice(0, -1).join(" ");
+      const last = words[words.length - 1];
+      return `${esc(first)} <span class="accent">${esc(last)}</span>`;
+    }
+
+    function ymd(d) {
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    }
+
+    async function init() {
+      let res;
+      try {
+        res = await fetch(`/api/enquiry-booking/${encodeURIComponent(token)}`);
+      } catch { return fail("Something went wrong. Please try again."); }
+      if (!res.ok) { const d = await res.json().catch(() => ({})); return fail(d.error || "This booking link isn't valid."); }
+      ctx = await res.json();
+      wordmarkEl.innerHTML = twoLineWordmark(ctx.studio_name);
+      document.title = `Book your session — ${ctx.studio_name}`;
+
+      if (ctx.already_booked) {
+        view.innerHTML = `<p class="lead-h">you're booked in</p>
+          <p class="muted">This piece is already booked. If you need to change anything, just reply to ${esc(ctx.studio_name)}'s email.</p>`;
+        return;
+      }
+      renderForm();
+      buildDays();
+    }
+
+    function fail(msg) {
+      view.innerHTML = `<p class="lead-h">hmm</p><p class="muted">${esc(msg)}</p>`;
+    }
+
+    function renderForm() {
+      const dep = ctx.deposit_amount;
+      const balance = ctx.agreed_price - dep;
+      const depositBlock = ctx.payments_enabled && dep > 0
+        ? `<div class="price-row"><span class="k">Deposit now</span><span class="v">${money(dep)}</span></div>
+           <div class="price-row"><span class="k">Balance on the day</span><span class="v">${money(balance)}</span></div>`
+        : `<div class="price-row"><span class="k">Deposit</span><span class="v">None needed</span></div>`;
+
+      const btnLabel = ctx.payments_enabled && dep > 0
+        ? `Agree &amp; pay ${money(dep)} deposit`
+        : `Agree &amp; book`;
+
+      view.innerHTML = `
+        <p class="lead-h">your piece is approved</p>
+        <div class="idea"><span class="lbl">The piece</span>${esc(ctx.description)}</div>
+
+        <div class="price-card">
+          <div class="price-row big"><span class="k">Agreed price</span><span class="v">${money(ctx.agreed_price)}</span></div>
+          ${depositBlock}
+        </div>
+        ${ctx.reply_note ? `<div class="note">${esc(ctx.reply_note)}</div>` : ""}
+
+        <p class="step-lbl">Choose a day</p>
+        <div class="days" id="days"></div>
+        <div class="slots" id="slots"><span class="muted">Pick a day to see times.</span></div>
+
+        ${ctx.email ? "" : `<div class="field">
+          <label for="email">Your email <span class="muted">— for your confirmation</span></label>
+          <input id="email" type="email" autocomplete="email" placeholder="you@example.com" />
+        </div>`}
+
+        <button class="btn" id="go" disabled>${btnLabel}</button>
+        <p class="err" id="err"></p>
+      `;
+      document.getElementById("go").addEventListener("click", submit);
+    }
+
+    function buildDays() {
+      const wrap = document.getElementById("days");
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      let html = "";
+      for (let i = 0; i < 28; i++) {
+        const d = new Date(today); d.setDate(d.getDate() + i);
+        const iso = ymd(d);
+        html += `<button class="day" data-date="${iso}">
+          <span class="dow">${d.toLocaleDateString("en-GB", { weekday: "short" })}</span>
+          <span class="dnum">${d.getDate()}</span>
+          <span class="dow">${d.toLocaleDateString("en-GB", { month: "short" })}</span>
+        </button>`;
+      }
+      wrap.innerHTML = html;
+      wrap.querySelectorAll(".day").forEach((b) =>
+        b.addEventListener("click", () => selectDay(b.dataset.date, b)));
+    }
+
+    async function selectDay(iso, btn) {
+      selDate = iso; selTime = null;
+      document.querySelectorAll(".day").forEach((d) => d.classList.toggle("sel", d === btn));
+      updateGo();
+      const slotsEl = document.getElementById("slots");
+      slotsEl.innerHTML = `<span class="muted">Loading times…</span>`;
+      let data;
+      try {
+        data = await fetch(`/api/availability?date=${iso}&artist_id=${ctx.artist_id}&duration=${ctx.duration_minutes}`).then((r) => r.json());
+      } catch { slotsEl.innerHTML = `<span class="muted">Couldn't load times.</span>`; return; }
+      const slots = (Array.isArray(data) && data[0] && data[0].slots) ? data[0].slots : [];
+      if (!slots.length) { slotsEl.innerHTML = `<span class="muted">No times that day — try another.</span>`; return; }
+      slotsEl.innerHTML = slots.map((t) => `<button class="slot" data-t="${t}">${fmtTime(t)}</button>`).join("");
+      slotsEl.querySelectorAll(".slot").forEach((s) =>
+        s.addEventListener("click", () => {
+          selTime = s.dataset.t;
+          slotsEl.querySelectorAll(".slot").forEach((x) => x.classList.toggle("sel", x === s));
+          updateGo();
+        }));
+    }
+
+    function fmtTime(hhmm) {
+      const [h, m] = hhmm.split(":").map(Number);
+      const suf = h >= 12 ? "pm" : "am";
+      const hr = ((h + 11) % 12) + 1;
+      return m === 0 ? `${hr}${suf}` : `${hr}:${String(m).padStart(2, "0")}${suf}`;
+    }
+
+    function updateGo() {
+      const go = document.getElementById("go");
+      if (go) go.disabled = !(selDate && selTime);
+    }
+
+    async function submit() {
+      const go = document.getElementById("go");
+      const err = document.getElementById("err");
+      err.textContent = "";
+      const emailInput = document.getElementById("email");
+      const body = { date: selDate, start_time: selTime };
+      if (emailInput) body.email = emailInput.value.trim();
+
+      go.disabled = true; const label = go.innerHTML; go.textContent = "Please wait…";
+      let res, data;
+      try {
+        res = await fetch(`/api/enquiry-booking/${encodeURIComponent(token)}/book`, {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+        });
+        data = await res.json().catch(() => ({}));
+      } catch { err.textContent = "Something went wrong. Please try again."; go.disabled = false; go.innerHTML = label; return; }
+
+      if (!res.ok) { err.textContent = data.error || "Couldn't book that — please try again."; go.disabled = false; go.innerHTML = label; return; }
+
+      if (data.checkout_url) { location.href = data.checkout_url; return; }
+      // No-payment path: confirmed instantly.
+      view.innerHTML = `<div class="done"><p class="lead-h">you're booked in</p>
+        <p>See you on ${esc(new Date(selDate + "T00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" }))} at ${esc(fmtTime(selTime))}. A confirmation is on its way.</p></div>`;
+    }
+
+    init();
+  </script>
+</body>
+</html>

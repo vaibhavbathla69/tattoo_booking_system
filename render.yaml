@@ -34,3 +34,11 @@ services:
         sync: false                         # from the Stripe dashboard webhook (see DEPLOY.md)
       - key: CALENDAR_TOKEN
         generateValue: true                 # secret in the calendar subscribe URL
+      # --- Enquiry emails (Resend). All optional — blank RESEND_API_KEY = no
+      #     emails (enquiries still work + are reviewed in the dashboard). ---
+      - key: EMAIL_FROM
+        value: Abigail Rae <onboarding@resend.dev>
+      - key: RESEND_API_KEY
+        sync: false                         # from https://resend.com — enables enquiry emails
+      - key: OWNER_EMAIL
+        sync: false                         # where "new enquiry" alerts are sent

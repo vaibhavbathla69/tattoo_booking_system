@@ -4,10 +4,11 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import db, { findOrCreateClient } from "./db.js";
+import db, { findOrCreateClient, createEnquiry, listEnquiries, getEnquiry, getEnquiryByToken, approveEnquiry, declineEnquiry, markEnquiryBooked } from "./db.js";
 import { getAvailabilityForDate, isSlotBookable, getAllHours, PENDING_HOLD_MINUTES } from "./availability.js";
 import { ownerChat, toolHandlers } from "./ai.js";
 import { getLinkBySlug, isDateBookable } from "./links.js";
+import { sendEnquiryNotification, sendEnquiryApproved } from "./email.js";
 import { paymentsEnabled, depositAmountPounds, createDepositCheckout, constructWebhookEvent, demoMode } from "./payments.js";
 import { buildIcs, calendarToken } from "./calendar.js";
 
@@ -65,6 +66,7 @@ const STUDIO_META = {
   "black-craft": "Black Craft Custom Tattoos",
   "hidden-gem-cardiff": "Kenzie Katz",
   "inked-byro": "Denver Fine Line Tattoos",
+  "abigail-rae": "Abigail Rae",
 };
 const escHtml = (s) =>
   String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -95,6 +97,25 @@ function sendBookingPage(req, res) {
 // take ?studio=… (e.g. demo.yoursite.com/book?studio=Golden+Goose+Tattoo).
 app.get("/", sendBookingPage);
 app.get("/book", sendBookingPage);
+
+// Abigail Rae — a dedicated landing hero (distinct from the booking SPA). Its
+// "Book a Session" CTA flows into /book?studio=abigail-rae like the other
+// presets. Reachable at the pretty /abigail as well as the raw file URL.
+app.get("/abigail", (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "public", "abigail-rae.html"));
+});
+
+// Her "enquire first" form (the hero CTA lands here instead of the booking flow).
+app.get("/abigail/enquire", (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "public", "abigail-enquire.html"));
+});
+
+// The customer's "book at the agreed price" page, reached from the approval
+// email's unguessable token. Shows the agreed price + deposit, a date/time
+// picker, and pays the deposit to confirm.
+app.get("/enquiry/:token", (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "public", "enquiry-book.html"));
+});
 
 // Shareable booking links (e.g. an Instagram flash-drop link) land on the
 // same customer SPA; app.js reads the slug from the URL and switches into
@@ -192,6 +213,152 @@ app.get("/api/links/:slug", (req, res) => {
     bookable_from: link.bookable_from,
     bookable_until: link.bookable_until,
   });
+});
+
+// "Enquire first" submissions — stored, not turned into a booking. The studio
+// follows up to quote and agree a date before any deposit is taken.
+app.post("/api/enquiries", (req, res) => {
+  const { name, email, phone, description, tattoo_type, placement, size, budget, reference_images, studio } =
+    req.body || {};
+
+  if (!name || !name.trim()) return res.status(400).json({ error: "Name is required." });
+  const hasEmail = email && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
+  if (!hasEmail && !(phone && phone.trim()))
+    return res.status(400).json({ error: "Leave an email or a phone number so Abigail can reply." });
+  if (!description || !description.trim())
+    return res.status(400).json({ error: "Tell Abigail a little about your idea." });
+
+  const cleanImages = Array.isArray(reference_images)
+    ? reference_images.filter((s) => typeof s === "string" && /^data:image\/(png|jpe?g|webp|gif);base64,/.test(s)).slice(0, 6)
+    : [];
+
+  const row = createEnquiry({
+    name, email, phone, description, tattoo_type, placement, size, budget,
+    reference_images: cleanImages, studio,
+  });
+
+  // Fire-and-forget owner alert — never blocks or breaks the submit.
+  sendEnquiryNotification({
+    name: row.name, email: row.email, phone: row.phone, description: row.description,
+    tattoo_type: row.tattoo_type, placement: row.placement, size: row.size, budget: row.budget,
+    referenceCount: cleanImages.length,
+    studioName: studioDisplayName(studio) || undefined,
+  }).catch((e) => console.error("enquiry notify:", e.message));
+
+  res.status(201).json({ ok: true, enquiry_id: row.id });
+});
+
+// Default session length used when scheduling an approved enquiry (the exact
+// length is agreed in the conversation; this just shapes the slot grid).
+const ENQUIRY_SESSION_MINUTES = 120;
+
+// Resolve a token to a still-valid approved-with-price enquiry, or null.
+function bookableEnquiry(token) {
+  const e = getEnquiryByToken(token);
+  if (!e || e.status !== "approved" || e.quoted_price == null) return null;
+  return e;
+}
+
+// Context for the customer's "book at the agreed price" page.
+app.get("/api/enquiry-booking/:token", (req, res) => {
+  const e = bookableEnquiry(req.params.token);
+  if (!e) return res.status(404).json({ error: "This booking link isn't valid." });
+
+  // If they've already booked and it wasn't cancelled, don't let them book twice.
+  let alreadyBooked = false;
+  if (e.booking_id) {
+    const b = db.prepare("SELECT status FROM bookings WHERE id = ?").get(e.booking_id);
+    alreadyBooked = !!b && b.status !== "cancelled";
+  }
+  const artist = db.prepare("SELECT * FROM artists WHERE active = 1 ORDER BY id LIMIT 1").get();
+
+  res.json({
+    studio: e.studio || "",
+    studio_name: studioDisplayName(e.studio) || "Custom Tattoo Studio",
+    client_name: e.name,
+    email: e.email || "",
+    description: e.description,
+    tattoo_type: e.tattoo_type,
+    agreed_price: e.quoted_price,
+    reply_note: e.reply_note,
+    deposit_amount: paymentsEnabled() ? depositAmountPounds() : 0,
+    payments_enabled: paymentsEnabled(),
+    demo_mode: demoMode(),
+    artist_id: artist ? artist.id : null,
+    duration_minutes: ENQUIRY_SESSION_MINUTES,
+    already_booked: alreadyBooked,
+  });
+});
+
+// Book the agreed piece: fixed price = the quote, standard deposit. Mirrors the
+// /api/bookings deposit flow but the price/duration come from the enquiry, never
+// the client.
+app.post("/api/enquiry-booking/:token/book", async (req, res) => {
+  const e = bookableEnquiry(req.params.token);
+  if (!e) return res.status(404).json({ error: "This booking link isn't valid." });
+
+  if (e.booking_id) {
+    const existing = db.prepare("SELECT status FROM bookings WHERE id = ?").get(e.booking_id);
+    if (existing && existing.status !== "cancelled")
+      return res.status(409).json({ error: "This piece is already booked in." });
+  }
+
+  const { date, start_time, email } = req.body || {};
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: "Pick a date." });
+  if (!start_time || !/^\d{2}:\d{2}$/.test(start_time)) return res.status(400).json({ error: "Pick a time slot." });
+  const todayStr = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD, local
+  if (date < todayStr) return res.status(400).json({ error: "That date is in the past." });
+
+  // The enquiry may have come in phone-only; a booking needs an email for the
+  // receipt/confirmation, so accept one from the page if we don't have it.
+  const contactEmail = (e.email || (email || "")).trim();
+  if (!contactEmail || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(contactEmail))
+    return res.status(400).json({ error: "A valid email is required for your confirmation." });
+
+  const artist = db.prepare("SELECT * FROM artists WHERE active = 1 ORDER BY id LIMIT 1").get();
+  if (!artist) return res.status(500).json({ error: "No artist configured." });
+
+  const duration = ENQUIRY_SESSION_MINUTES;
+  const check = isSlotBookable(date, artist.id, start_time, duration);
+  if (!check.ok) return res.status(409).json({ error: "That slot has just been taken — please pick another." });
+
+  const takePayment = paymentsEnabled();
+  const initialStatus = takePayment ? "pending" : "confirmed";
+  const clientRow = findOrCreateClient({ name: e.name, email: contactEmail, phone: e.phone });
+  const consentToken = crypto.randomBytes(16).toString("hex");
+  const styleLabel = "Custom tattoo";
+
+  const result = db
+    .prepare(
+      `INSERT INTO bookings (client_id, artist_id, service_id, link_id, date, start_time, duration_minutes,
+                             style, description, reference_notes, reference_images, price, status,
+                             consent_token, source)
+       VALUES (?, ?, NULL, NULL, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, 'web')`
+    )
+    .run(
+      clientRow.id, artist.id, date, start_time, duration, styleLabel,
+      e.description || "", e.reference_images || "[]", e.quoted_price, initialStatus, consentToken
+    );
+  const bookingId = result.lastInsertRowid;
+  markEnquiryBooked(e.id, bookingId);
+
+  if (!takePayment) {
+    return res.status(201).json({ booked: true, booking_id: bookingId, consent_token: consentToken });
+  }
+
+  try {
+    const session = await createDepositCheckout({
+      bookingId, artistName: studioDisplayName(e.studio) || artist.name,
+      styleLabel: `${styleLabel} (agreed £${e.quoted_price})`,
+      date, startTime: start_time, returnStudio: e.studio || "",
+    });
+    db.prepare("UPDATE bookings SET checkout_session_id = ? WHERE id = ?").run(session.id, bookingId);
+    return res.status(201).json({ checkout_url: session.url });
+  } catch (err) {
+    db.prepare("UPDATE bookings SET status = 'cancelled' WHERE id = ?").run(bookingId);
+    console.error("Stripe checkout error (enquiry):", err);
+    return res.status(502).json({ error: "Couldn't start payment — please try again." });
+  }
 });
 
 app.post("/api/bookings", async (req, res) => {
@@ -473,6 +640,48 @@ app.patch("/api/owner/links/:link_id", requireOwner, (req, res) => {
   });
   if (result && result.error) return res.status(400).json(result);
   res.json(result);
+});
+
+// ---- Enquiries (owner reviews, approves with a note/price, or declines) ----
+// No email layer in this build, so approving records the quote/note and marks
+// the enquiry approved; the artist follows up with the customer and shares the
+// booking link (/book?studio=…) herself.
+app.get("/api/owner/enquiries", requireOwner, (req, res) => {
+  res.json({ enquiries: listEnquiries() });
+});
+
+app.post("/api/owner/enquiries/:id/approve", requireOwner, (req, res) => {
+  const id = Number(req.params.id);
+  const existing = getEnquiry(id);
+  if (!existing) return res.status(404).json({ error: "Enquiry not found." });
+
+  const { price, note } = req.body || {};
+  const quotedPrice = price === "" || price == null ? null : Number(price);
+  if (quotedPrice != null && !Number.isFinite(quotedPrice))
+    return res.status(400).json({ error: "Price must be a number." });
+
+  // With a price, mint an unguessable token → a personal "book at the agreed
+  // price" page. Without one, we fall back to the generic studio booking link.
+  const approveToken = quotedPrice != null ? crypto.randomBytes(16).toString("hex") : null;
+  const updated = approveEnquiry(id, { quotedPrice, replyNote: (note || "").trim(), approveToken });
+
+  // Email the customer their note/price + the link. Fire-and-forget.
+  const base = (process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`).replace(/\/+$/, "");
+  const bookingUrl = updated.approve_token
+    ? `${base}/enquiry/${updated.approve_token}`
+    : (updated.studio ? `${base}/book?studio=${encodeURIComponent(updated.studio)}` : `${base}/book`);
+  sendEnquiryApproved({
+    name: updated.name, email: updated.email, note: updated.reply_note, price: updated.quoted_price,
+    bookingUrl, studioName: studioDisplayName(updated.studio) || undefined,
+  }).catch((e) => console.error("enquiry approve email:", e.message));
+
+  res.json(updated);
+});
+
+app.post("/api/owner/enquiries/:id/decline", requireOwner, (req, res) => {
+  const id = Number(req.params.id);
+  if (!getEnquiry(id)) return res.status(404).json({ error: "Enquiry not found." });
+  res.json(declineEnquiry(id));
 });
 
 // ---------------------------------------------------------------------------

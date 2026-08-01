@@ -1,6 +1,7 @@
 /* Black Craft Custom Tattoos — owner dashboard shell: auth, tabs, chat panel, shared helpers */
 import { renderCalendar } from "./owner-calendar.js";
 import { renderClients } from "./owner-clients.js";
+import { renderEnquiries } from "./owner-enquiries.js";
 import { renderStats } from "./owner-stats.js";
 import { renderLinks, linkFormFieldsHtml, wireLinkForm } from "./owner-links.js";
 
@@ -106,6 +107,7 @@ export function artistColor(artistId) {
 const views = {
   calendar: { mount: null, render: renderCalendar },
   clients: { mount: null, render: renderClients },
+  enquiries: { mount: null, render: renderEnquiries },
   stats: { mount: null, render: renderStats },
   links: { mount: null, render: renderLinks },
 };
@@ -137,6 +139,7 @@ function showDashboard() {
 
   views.calendar.mount = $("view-calendar");
   views.clients.mount = $("view-clients");
+  views.enquiries.mount = $("view-enquiries");
   views.stats.mount = $("view-stats");
   views.links.mount = $("view-links");
 

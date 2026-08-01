@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Abigail Rae — Fine Line &amp; Custom Tattoo</title>
+  <meta name="description" content="Abigail Rae — fine line, flash and custom tattoo. Book your session online." />
+  <meta property="og:title" content="Abigail Rae — Fine Line & Custom Tattoo" />
+  <meta property="og:description" content="Fine line, flash and custom tattoo. Book your session online." />
+  <meta property="og:type" content="website" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Pinyon+Script&display=swap" rel="stylesheet" />
+  <style>
+    /* =================================================================
+       Abigail Rae — landing hero. Single screen, adapted from the
+       studio design (paper tone, corner line-art, centre tagline,
+       bottom wordmark). CTA flows into the booking flow at
+       /book?studio=abigail-rae. Self-contained — no shared CSS.
+       ================================================================= */
+    :root {
+      --paper: #fdfcfb;
+      --ink: #2e2c2b;
+      --ink-soft: #6a6764;
+      --accent: #c0392b;
+      --sans: "DM Sans", system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--sans);
+      font-weight: 300;
+      -webkit-font-smoothing: antialiased;
+      cursor: url('abigail-assets/cursor64.png') 32 32, auto;
+      overflow-x: hidden;
+    }
+    a, .btn-outline { cursor: url('abigail-assets/cursor64_mirror.png') 32 32, pointer; }
+    img { display: block; max-width: 100%; }
+
+    /* fixed nav */
+    header.nav {
+      position: fixed; top: 20px; right: 1.25rem; z-index: 999;
+      display: flex; align-items: center; gap: .5rem;
+    }
+    header.nav a {
+      font-family: var(--sans); font-size: .68rem; font-weight: 400;
+      letter-spacing: -.04em; text-transform: uppercase; color: var(--ink);
+      text-decoration: none; user-select: none;
+    }
+    header.nav a:hover { color: var(--accent); }
+    header.nav .nav__sep {
+      display: block; width: 16px; height: 1px; background: var(--ink);
+      opacity: .35; transform: rotate(-20deg); flex-shrink: 0;
+    }
+
+    /* hero */
+    .hero {
+      position: relative;
+      min-height: 100svh;
+      display: flex; flex-direction: column;
+      padding: 1.25rem 1.25rem 1.5rem;
+      overflow: hidden;
+    }
+    .hero__flower {
+      position: absolute; top: -40px; left: -50px;
+      width: 75%; max-width: 400px; height: auto;
+      pointer-events: none; z-index: 0;
+      transform: rotate(180deg) scaleX(-1);
+      opacity: .92;
+    }
+    /* scattered flash — decorative only, sits behind everything (z-index 0),
+       faint and non-interactive so it reads as texture, not content */
+    .hero__scatter {
+      position: absolute; z-index: 0; pointer-events: none;
+      filter: grayscale(100%); opacity: 0.2;
+      width: 24vw; max-width: 180px; height: auto;
+    }
+    /* insects read darker → dial them back further; the pale fish can sit higher */
+    .hero__scatter.s1 { top: 9%;  right: 7%;  width: 17vw; max-width: 130px; opacity: 0.14; transform: rotate(-12deg); }
+    .hero__scatter.s2 { top: 44%; left: 5%;   width: 20vw; max-width: 150px; opacity: 0.18; transform: rotate(8deg); }
+    .hero__scatter.s3 { bottom: 12%; left: 7%; width: 28vw; max-width: 200px; opacity: 0.3;  transform: rotate(6deg); }
+    .hero__scatter.s4 { top: 40%; right: 9%;  width: 20vw; max-width: 150px; opacity: 0.14; transform: rotate(-6deg); }
+    /* darker/high-contrast piece → keep opacity lowest so it stays texture */
+    .hero__scatter.s5 { top: 6%; left: 41%; width: 15vw; max-width: 118px; opacity: 0.1; transform: rotate(-4deg); }
+    /* descending insect trail — each step smaller and lower, wandering across
+       the lower-centre so it stays clear of the wordmark and footer text */
+    .hero__scatter.bug { opacity: 0.14; }
+    .hero__scatter.b1 { bottom: 32%; left: 44%; width: 9vw;   max-width: 66px; transform: rotate(-14deg); }
+    .hero__scatter.b2 { bottom: 25%; left: 51%; width: 7vw;   max-width: 52px; transform: rotate(-2deg); }
+    .hero__scatter.b3 { bottom: 19%; left: 47%; width: 5.4vw; max-width: 40px; transform: rotate(10deg); }
+    .hero__scatter.b4 { bottom: 13%; left: 53%; width: 4vw;   max-width: 30px; transform: rotate(-8deg); }
+    .hero__scatter.b5 { bottom: 8%;  left: 49%; width: 3vw;   max-width: 22px; transform: rotate(4deg); }
+
+    .hero__center {
+      position: absolute; z-index: 2;
+      top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 100%; padding: 0 1.5rem;
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; text-align: center; gap: .2rem;
+    }
+    .hero__lead {
+      letter-spacing: -.04em; text-transform: uppercase;
+      font-size: clamp(1rem, 4.2vw, 1.15rem); font-weight: 400;
+      line-height: 120%; color: var(--ink); max-width: 34ch;
+    }
+    .hero__dash {
+      font-size: 1rem; font-weight: 400; color: var(--ink);
+      letter-spacing: -.04em; margin-bottom: .4rem;
+    }
+    .hero__script {
+      font-family: "Pinyon Script", cursive;
+      font-size: clamp(2.6rem, 10vw, 3.4rem);
+      color: var(--ink); opacity: .6;
+      margin: .2rem 0 1.4rem; line-height: 1;
+    }
+    .btn-outline {
+      display: inline-block; border: 1px solid var(--accent);
+      color: var(--accent); text-transform: uppercase;
+      letter-spacing: .18em; font-size: .62rem; font-weight: 500;
+      padding: .65rem 1.3rem; text-decoration: none;
+      background: linear-gradient(var(--accent), var(--accent)) no-repeat center / 0% 100%;
+      transition: background-size .8s ease, color .8s ease;
+    }
+    .btn-outline:hover { background-size: 100% 100%; color: #fff; }
+
+    /* bottom wordmark */
+    .hero__bottom {
+      position: absolute; z-index: 2;
+      bottom: 1.5rem; left: 1.25rem; right: 1.25rem;
+      display: flex; align-items: flex-end; justify-content: space-between;
+      gap: 1rem;
+    }
+    .hero__meta {
+      display: flex; flex-direction: column; text-align: left;
+      letter-spacing: -.04em; text-transform: uppercase;
+      font-size: clamp(.65rem, 2vw, .82rem); font-weight: 400;
+      line-height: 120%; color: var(--ink-soft);
+      padding-bottom: .3rem; white-space: nowrap; flex: none;
+    }
+    .wordmark {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-weight: 400; font-variant: small-caps; text-transform: none;
+      letter-spacing: .05em; line-height: .86;
+      font-size: clamp(2.4rem, 14vw, 6rem);
+      color: var(--ink); margin-left: auto; text-align: right;
+      min-width: 0; max-width: 100%;
+    }
+    .wordmark span { display: block; white-space: nowrap; }
+    .wordmark .accent { color: var(--accent); }
+
+    @media (min-width: 768px) {
+      .hero { padding: 2rem 3rem 2.5rem; }
+      .hero__flower { width: 34%; max-width: 460px; top: -60px; left: -10px; }
+      .hero__lead { font-size: 1.15rem; letter-spacing: .06em; max-width: 46ch; }
+      .hero__script { font-size: 4rem; margin-bottom: 2.2rem; }
+      .hero__meta { padding-bottom: .4rem; font-size: .72rem; }
+      .wordmark { font-size: clamp(4rem, 10vw, 8rem); }
+      header.nav { right: 2.5rem; }
+    }
+  </style>
+</head>
+<body>
+  <header class="nav">
+    <a href="/abigail/enquire">Enquire</a>
+    <span class="nav__sep"></span>
+    <a href="https://instagram.com/abigailrae.ink" target="_blank" rel="noopener">Instagram</a>
+  </header>
+
+  <section class="hero">
+    <img class="hero__flower" src="abigail-assets/hero-lineart.png" alt="" />
+
+    <!-- Scattered flash line-art — quiet background texture, not focal. -->
+    <img class="hero__scatter s1" src="abigail-assets/bg_insect.png" alt="" />
+    <img class="hero__scatter s2" src="abigail-assets/bg_flower.png" alt="" />
+    <img class="hero__scatter s3" src="abigail-assets/bg_fish.png" alt="" />
+    <img class="hero__scatter s4" src="abigail-assets/bg_invertinsect.png" alt="" />
+    <img class="hero__scatter s5" src="abigail-assets/bg_girl.png" alt="" />
+
+    <!-- A trail of the same insect, shrinking as it descends the lower area. -->
+    <img class="hero__scatter bug b1" src="abigail-assets/bg_insect.png" alt="" />
+    <img class="hero__scatter bug b2" src="abigail-assets/bg_insect.png" alt="" />
+    <img class="hero__scatter bug b3" src="abigail-assets/bg_insect.png" alt="" />
+    <img class="hero__scatter bug b4" src="abigail-assets/bg_insect.png" alt="" />
+    <img class="hero__scatter bug b5" src="abigail-assets/bg_insect.png" alt="" />
+
+    <div class="hero__center">
+      <p class="hero__lead">We spit your mind out into art that lives</p>
+      <p class="hero__dash">–</p>
+      <p class="hero__script">on your skin</p>
+      <a class="btn-outline" href="/abigail/enquire">Send Enquiry</a>
+    </div>
+
+    <div class="hero__bottom">
+      <div class="hero__meta">
+        <span>Fine Line &amp; Custom Tattoo</span>
+        <span>By appointment</span>
+      </div>
+      <h1 class="wordmark"><span>Abigail</span><span class="accent">Rae</span></h1>
+    </div>
+  </section>
+
+  <script>
+    /* The wordmark font-size is viewport-based, which only fits short names.
+       Scale it down until the widest line fits its box, so the full name can
+       never push off the right edge on a narrow phone. Mirrors the original
+       design's fitWordmark(). */
+    (function () {
+      var wm = document.querySelector(".wordmark");
+      function fit() {
+        if (!wm) return;
+        wm.style.fontSize = "";                 // back to the CSS size
+        var avail = wm.clientWidth;
+        if (!avail) return;
+        wm.style.maxWidth = "none";             // measure unconstrained
+        wm.style.width = "max-content";
+        var needed = wm.offsetWidth;
+        wm.style.width = "";
+        wm.style.maxWidth = "";
+        if (needed <= avail) return;
+        var base = parseFloat(getComputedStyle(wm).fontSize);
+        wm.style.fontSize = (base * (avail / needed)) + "px";
+      }
+      fit();
+      addEventListener("resize", fit);
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+    })();
+  </script>
+</body>
+</html>
